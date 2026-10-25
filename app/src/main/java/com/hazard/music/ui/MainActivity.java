@@ -268,7 +268,6 @@ public class MainActivity extends Activity {
         });
         root.addView(miniBar, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        root.addView(divider());
         bottomTabs = Ui.row(this);
         bottomTabs.setBackgroundColor(Ui.SURFACE);
         bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2), Ui.dp(this, 4), Ui.dp(this, 2));
@@ -282,10 +281,9 @@ public class MainActivity extends Activity {
             int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
             int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
             int expected = getResources().getDisplayMetrics().heightPixels - visible.top - navHeight;
-            int inset = Math.max(0, root.getHeight() - expected);
-            if (inset > 0) root.setPadding(0, 0, 0, Math.min(inset, navHeight));
+            int inset = Math.max(0, Math.min(root.getHeight() - expected, navHeight));
+            if (inset > 0) root.setPadding(0, 0, 0, inset);
         });
-
         setContentView(root);
         updateTabs();
         updateChrome();
