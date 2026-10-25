@@ -5,3 +5,6 @@ local.properties
 .idea/
 captures/
 .DS_Store
+PLAN.md
+ENVIRONMENT.md
+draft.md
