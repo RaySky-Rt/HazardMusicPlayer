@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Rect;
+import android.graphics.PorterDuff;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
@@ -18,6 +19,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.AbsListView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -25,6 +27,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -143,6 +146,15 @@ public class MainActivity extends Activity {
     private int subSeq;
     private boolean subLoading;
     private String subError = "";
+    private int subPlaylistOffset;
+    private int subPlaylistTotal;
+    private boolean subPlaylistHasMore;
+    private boolean subPlaylistLoading;
+    private SongAdapter subPlaylistAdapter;
+    private ListView subPlaylistListView;
+    private LinearLayout subPlaylistFooter;
+    private ProgressBar subPlaylistFooterProgress;
+    private TextView subPlaylistFooterText;
 
     private final SongAdapter.Listener songListener = new SongAdapter.Listener() {
         @Override
@@ -1598,34 +1610,67 @@ public class MainActivity extends Activity {
         subSongs = new ArrayList<>();
         subError = "";
         subLoading = true;
-        final int seq = ++subSeq;
+        subPlaylistOffset = 0;
+        subPlaylistTotal = 0;
+        subPlaylistHasMore = true;
+        subPlaylistLoading = false;
+        subPlaylistAdapter = null;
+        subPlaylistListView = null;
+        subPlaylistFooter = null;
+        subPlaylistFooterProgress = null;
+        subPlaylistFooterText = null;
         subBack = back;
         currentBack = back;
         content.removeAllViews();
         content.addView(buildSubMessage(playlist.name, "加载歌单…", null, back));
+        loadPlaylistPage(playlist, back);
+    }
 
-        client.playlistSongs(playlist.id, new NetEaseClient.Callback<List<Song>>() {
+    private void loadPlaylistPage(Playlist playlist, Runnable back) {
+        if (subPlaylist != playlist || subPlaylistLoading || !subPlaylistHasMore) return;
+        subPlaylistLoading = true;
+        subLoading = true;
+        updatePlaylistFooter();
+        final int seq = ++subSeq;
+        final int start = subPlaylistOffset;
+        client.playlistSongsPage(playlist.id, start, 50, new NetEaseClient.Callback<NetEaseClient.PlaylistPage>() {
             @Override
-            public void onSuccess(List<Song> data) {
-                if (seq != subSeq) return;
+            public void onSuccess(NetEaseClient.PlaylistPage data) {
+                if (seq != subSeq || subPlaylist != playlist) return;
+                subPlaylistLoading = false;
                 subLoading = false;
                 subError = "";
-                subSongs = data == null ? new ArrayList<>() : data;
-                if (currentBack == back) {
+                subSongs.addAll(data.songs);
+                subPlaylistOffset = data.offset;
+                subPlaylistTotal = data.total;
+                subPlaylistHasMore = data.hasMore;
+                if (currentBack != back) return;
+                if (start == 0 || subPlaylistListView == null) {
                     content.removeAllViews();
-                    content.addView(buildSongsScreen(subTitle, subSongs, back));
+                    content.addView(buildSongsScreen(subTitle, subSongs, back, true));
+                } else if (subPlaylistAdapter != null) {
+                    subPlaylistAdapter.notifyDataSetChanged();
                 }
-                setStatus(subTitle + " · " + subSongs.size() + " 首");
+                updatePlaylistFooter();
+                setStatus(subTitle + " · " + subSongs.size() + "/" + subPlaylistTotal + " 首");
             }
 
             @Override
             public void onError(String message, int code) {
-                if (seq != subSeq) return;
+                if (seq != subSeq || subPlaylist != playlist) return;
+                subPlaylistLoading = false;
                 subLoading = false;
-                subError = message + " (" + code + ")";
-                if (currentBack == back) {
+                if (currentBack != back) return;
+                if (start == 0) {
+                    subError = message + " (" + code + ")";
                     content.removeAllViews();
-                    content.addView(buildSubMessage(subTitle, subError, () -> openPlaylist(subPlaylist, back), back));
+                    content.addView(buildSubMessage(subTitle, subError,
+                            () -> openPlaylist(playlist, back), back));
+                } else {
+                    subPlaylistHasMore = true;
+                    updatePlaylistFooter();
+                    Ui.toast(MainActivity.this, "加载更多失败：" + message);
+                    setStatus(subTitle + " · " + subSongs.size() + "/" + subPlaylistTotal + " 首");
                 }
             }
         });
@@ -1651,12 +1696,17 @@ public class MainActivity extends Activity {
     }
 
     private View buildSongsScreen(String title, List<Song> songs, Runnable back) {
+        return buildSongsScreen(title, songs, back, false);
+    }
+
+    private View buildSongsScreen(String title, List<Song> songs, Runnable back, boolean paged) {
         LinearLayout screen = Ui.column(this);
         screen.addView(subHeader(title, back));
         if (songs.isEmpty()) {
             screen.addView(centered("没有歌曲"), Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         } else {
-            screen.addView(songList(songs), Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            screen.addView(songList(songs, paged, back),
+                    Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         }
         return screen;
     }
@@ -1682,13 +1732,69 @@ public class MainActivity extends Activity {
     }
 
     private ListView songList(List<Song> songs) {
+        return songList(songs, false, null);
+    }
+
+    private ListView songList(List<Song> songs, boolean paged, Runnable back) {
         ListView list = new ListView(this);
         list.setDivider(new ColorDrawable(0xFF2A2A2A));
         list.setDividerHeight(1);
         list.setSelector(new ColorDrawable(Color.TRANSPARENT));
         list.setCacheColorHint(Color.TRANSPARENT);
-        list.setAdapter(new SongAdapter(this, songs, likedIds, songListener, downloadManager));
+        SongAdapter adapter = new SongAdapter(this, songs, likedIds, songListener, downloadManager);
+        if (paged) {
+            subPlaylistFooter = Ui.row(this);
+            subPlaylistFooter.setGravity(Gravity.CENTER);
+            subPlaylistFooter.setPadding(0, Ui.dp(this, 10), 0, Ui.dp(this, 10));
+            subPlaylistFooterProgress = new ProgressBar(this);
+            subPlaylistFooterProgress.setIndeterminate(true);
+            subPlaylistFooterProgress.getIndeterminateDrawable()
+                    .setColorFilter(Ui.MUTED, PorterDuff.Mode.SRC_IN);
+            subPlaylistFooterText = Ui.text(this, "", 12, Ui.MUTED);
+            subPlaylistFooter.addView(subPlaylistFooterProgress,
+                    Ui.lp(Ui.dp(this, 16), Ui.dp(this, 16)));
+            LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            textParams.leftMargin = Ui.dp(this, 8);
+            subPlaylistFooter.addView(subPlaylistFooterText, textParams);
+            list.addFooterView(subPlaylistFooter, null, false);
+        }
+        list.setAdapter(adapter);
+        if (paged) {
+            subPlaylistListView = list;
+            subPlaylistAdapter = adapter;
+            updatePlaylistFooter();
+            list.setOnScrollListener(new AbsListView.OnScrollListener() {
+                @Override
+                public void onScrollStateChanged(AbsListView view, int scrollState) {
+                }
+
+                @Override
+                public void onScroll(AbsListView view, int firstVisibleItem,
+                                     int visibleItemCount, int totalItemCount) {
+                    if (subPlaylist == null || subPlaylistLoading || !subPlaylistHasMore) return;
+                    if (firstVisibleItem + visibleItemCount >= totalItemCount - 5) {
+                        loadPlaylistPage(subPlaylist, back);
+                    }
+                }
+            });
+        }
         return list;
+    }
+
+    private void updatePlaylistFooter() {
+        if (subPlaylistFooter == null || subPlaylistFooterText == null
+                || subPlaylistFooterProgress == null) return;
+        if (subPlaylistLoading) {
+            subPlaylistFooterProgress.setVisibility(View.VISIBLE);
+            subPlaylistFooterText.setText("加载中…");
+        } else if (!subPlaylistHasMore && !subSongs.isEmpty()) {
+            subPlaylistFooterProgress.setVisibility(View.GONE);
+            subPlaylistFooterText.setText("已经到底了");
+        } else {
+            subPlaylistFooterProgress.setVisibility(View.GONE);
+            subPlaylistFooterText.setText("继续上滑加载更多");
+        }
     }
 
     private void toggleLike(Song song, boolean like) {
@@ -1719,7 +1825,7 @@ public class MainActivity extends Activity {
             renderSearch();
         } else if (subTitle != null && subSongs != null && subBack != null) {
             content.removeAllViews();
-            content.addView(buildSongsScreen(subTitle, subSongs, subBack));
+            content.addView(buildSongsScreen(subTitle, subSongs, subBack, subPlaylist != null));
             currentBack = subBack;
         } else {
             showTab(tab == 0 ? 0 : 1);

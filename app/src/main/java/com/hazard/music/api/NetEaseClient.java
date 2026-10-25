@@ -201,47 +201,90 @@ public final class NetEaseClient {
                 }, callback);
     }
 
-    public void playlistSongs(long playlistId, Callback<List<Song>> callback) {
+    public static final class PlaylistPage {
+        public final List<Song> songs;
+        public final int offset;
+        public final int total;
+        public final boolean hasMore;
+
+        PlaylistPage(List<Song> songs, int offset, int total, boolean hasMore) {
+            this.songs = songs;
+            this.offset = offset;
+            this.total = total;
+            this.hasMore = hasMore;
+        }
+    }
+
+    /**
+     * Loads one slice of a playlist. The playlist detail endpoint returns the
+     * complete track-id list cheaply; only the requested slice is resolved into
+     * full song objects, so large playlists do not block on one huge response.
+     */
+    public void playlistSongsPage(long playlistId, int offset, int limit,
+                                  Callback<PlaylistPage> callback) {
         io.execute(() -> {
             try {
+                final int safeOffset = Math.max(0, offset);
+                final int safeLimit = Math.max(1, Math.min(limit, 100));
                 JSONObject detail = execute("/api/v6/playlist/detail",
-                        obj("id", playlistId, "n", 1000, "s", 0), true);
+                        obj("id", playlistId, "n", 1, "s", 0), true);
                 ensureOk(detail);
                 JSONObject playlist = detail.optJSONObject("playlist");
                 if (playlist == null) throw new ApiException("歌单不存在", -2);
 
-                List<Song> songs = Song.list(playlist.optJSONArray("tracks"));
-                if (songs.isEmpty()) {
-                    JSONArray trackIds = playlist.optJSONArray("trackIds");
-                    if (trackIds != null) {
-                        List<Long> ids = new ArrayList<>();
-                        for (int i = 0; i < trackIds.length() && ids.size() < 1000; i++) {
-                            JSONObject item = trackIds.optJSONObject(i);
-                            long id = item == null ? 0 : item.optLong("id", 0);
-                            if (id > 0) ids.add(id);
-                        }
-                        for (int start = 0; start < ids.size(); start += 500) {
-                            int end = Math.min(start + 500, ids.size());
-                            JSONArray c = new JSONArray();
-                            for (int i = start; i < end; i++) {
-                                c.put(new JSONObject().put("id", ids.get(i)));
-                            }
-                            JSONObject detail2 = execute("/api/v3/song/detail",
-                                    obj("c", c.toString()), false);
-                            ensureOk(detail2);
-                            songs.addAll(Song.list(detail2.optJSONArray("songs")));
-                        }
+                JSONArray trackIds = playlist.optJSONArray("trackIds");
+                List<Long> ids = new ArrayList<>();
+                if (trackIds != null) {
+                    for (int i = 0; i < trackIds.length(); i++) {
+                        JSONObject item = trackIds.optJSONObject(i);
+                        long id = item == null ? 0 : item.optLong("id", 0);
+                        if (id > 0) ids.add(id);
                     }
                 }
-                final List<Song> result = songs;
-                main.post(() -> callback.onSuccess(result));
+
+                final PlaylistPage page;
+                if (ids.isEmpty()) {
+                    List<Song> all = Song.list(playlist.optJSONArray("tracks"));
+                    int start = Math.min(safeOffset, all.size());
+                    int end = Math.min(start + safeLimit, all.size());
+                    page = new PlaylistPage(new ArrayList<>(all.subList(start, end)),
+                            end, all.size(), end < all.size());
+                } else {
+                    int start = Math.min(safeOffset, ids.size());
+                    int end = Math.min(start + safeLimit, ids.size());
+                    List<Song> songs = songDetails(ids.subList(start, end));
+                    page = new PlaylistPage(songs, end, ids.size(), end < ids.size());
+                }
+                main.post(() -> callback.onSuccess(page));
             } catch (ApiException e) {
-                Log.w(TAG, "playlistSongs error code=" + e.code + " " + e.getMessage());
+                Log.w(TAG, "playlistSongsPage error code=" + e.code + " " + e.getMessage());
                 main.post(() -> callback.onError(e.getMessage(), e.code));
             } catch (Exception e) {
                 main.post(() -> callback.onError(describe(e), -1));
             }
         });
+    }
+
+    private List<Song> songDetails(List<Long> ids) throws Exception {
+        Map<Long, Song> byId = new LinkedHashMap<>();
+        for (int start = 0; start < ids.size(); start += 500) {
+            int end = Math.min(start + 500, ids.size());
+            JSONArray c = new JSONArray();
+            for (int i = start; i < end; i++) {
+                c.put(new JSONObject().put("id", ids.get(i)));
+            }
+            JSONObject detail = execute("/api/v3/song/detail",
+                    obj("c", c.toString()), false);
+            ensureOk(detail);
+            List<Song> songs = Song.list(detail.optJSONArray("songs"));
+            for (Song song : songs) byId.put(song.id, song);
+        }
+        List<Song> out = new ArrayList<>(ids.size());
+        for (Long id : ids) {
+            Song song = byId.get(id);
+            if (song != null) out.add(song);
+        }
+        return out;
     }
 
     // ---- playback URL (P2) ----
