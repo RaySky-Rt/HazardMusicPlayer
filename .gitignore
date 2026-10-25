@@ -1,0 +1,11 @@
+.gradle/
+local.properties
+**/build/
+*.iml
+.idea/
+captures/
+.DS_Store
+PLAN.md
+ENVIRONMENT.md
+draft.md
+NOTICE.md

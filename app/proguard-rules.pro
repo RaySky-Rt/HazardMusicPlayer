@@ -1,0 +1,6 @@
+-keep class com.google.android.exoplayer2.ext.flac.** { *; }
+-keepclasseswithmembernames class * { native <methods>; }
+-keep class com.google.zxing.** { *; }
+-dontwarn com.google.android.exoplayer2.ext.flac.**
+-keep class com.google.android.exoplayer2.extractor.FlacStreamMetadata { *; }
+-keep class com.google.android.exoplayer2.metadata.flac.** { *; }
