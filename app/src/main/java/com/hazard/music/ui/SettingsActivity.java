@@ -181,7 +181,9 @@ public class SettingsActivity extends Activity {
                     app.db().putCache("playlists", "[]");
                     app.db().putCache("albums", "[]");
                     app.db().putCache("liked", "[]");
-                    setResult(RESULT_OK);
+                    Intent out = new Intent();
+                    out.putExtra("logout", true);
+                    setResult(RESULT_OK, out);
                     finish();
                 })
                 .setNegativeButton("取消", null)

@@ -1821,16 +1821,17 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_SETTINGS) {
-            account = null;
-            likedIds.clear();
-            playlists.clear();
-            albums.clear();
-            likesLoaded = false;
-            playlistsLoaded = false;
-            albumsLoaded = false;
-            albumsError = "";
-            loadAccount();
-            loadRecommend();
+            boolean loggedOut = data != null && data.getBooleanExtra("logout", false);
+            if (loggedOut) {
+                account = null;
+                likedIds.clear();
+                playlists.clear();
+                albums.clear();
+                likesLoaded = false;
+                playlistsLoaded = false;
+                albumsLoaded = false;
+                albumsError = "";
+            }
             showTab(tab);
             return;
         }
