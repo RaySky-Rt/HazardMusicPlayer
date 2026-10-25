@@ -67,10 +67,13 @@ public class MainActivity extends Activity {
     private LinearLayout topBar;
     private LinearLayout bottomTabs;
     private TextView appTitle;
-    private Button topAction;
     private boolean subMode;
     private boolean searchOpen;
     private boolean localMusicOpen;
+    private boolean dailyOpen;
+    private boolean historyExpanded;
+    private PullRefreshLayout homeRefresh;
+    private int homeRefreshPending;
 
     private PlayerController playerController;
     private LinearLayout miniBar;
@@ -210,22 +213,6 @@ public class MainActivity extends Activity {
         titleBox.addView(status);
         topBar.addView(titleBox, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        topAction = Ui.button(this, "", false);
-        topAction.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_refresh, 0, 0, 0);
-        topAction.setContentDescription("刷新");
-        topAction.setTextSize(11);
-        topAction.setMinHeight(0);
-        topAction.setMinWidth(0);
-        topAction.setPadding(Ui.dp(this, 10), Ui.dp(this, 5), Ui.dp(this, 10), Ui.dp(this, 5));
-        topAction.setOnClickListener(v -> {
-            if (tab == 0) refreshHome();
-            else refreshMine();
-        });
-        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 34));
-        actionParams.setMargins(0, 0, Ui.dp(this, 6), 0);
-        topBar.addView(topAction, actionParams);
-
         root.addView(topBar);
         root.addView(divider());
 
@@ -347,7 +334,6 @@ public class MainActivity extends Activity {
         if (subMode) return;
         String[] titles = {"首页", "我的"};
         appTitle.setText(titles[Math.max(0, Math.min(1, tab))]);
-        topAction.setVisibility(View.VISIBLE);
         if (tab == 1) status.setVisibility(View.GONE);
     }
 
@@ -364,6 +350,9 @@ public class MainActivity extends Activity {
         subError = "";
         searchOpen = false;
         localMusicOpen = false;
+        dailyOpen = false;
+        historyExpanded = false;
+        homeRefresh = null;
         content.removeAllViews();
         setStatus("");
         updateTabs();
@@ -378,54 +367,119 @@ public class MainActivity extends Activity {
     // ---------------- recommend ----------------
 
     private View buildHome() {
-        ListView list = new ListView(this);
-        list.setDivider(new ColorDrawable(0xFF2A2A2A));
-        list.setDividerHeight(1);
-        list.setSelector(new ColorDrawable(Color.TRANSPARENT));
-        list.setCacheColorHint(Color.TRANSPARENT);
-        list.addHeaderView(buildHomeHeader(), null, false);
+        PullRefreshLayout pull = new PullRefreshLayout(this);
+        pull.setListener(() -> refreshHome(true));
 
-        if (recommendSongs.isEmpty()) {
-            String text = recommendLoading ? "加载中…" : (recommendError.isEmpty()
-                    ? (recommendLoaded ? "暂无每日推荐" : "下拉刷新获取推荐")
-                    : recommendError);
-            list.addFooterView(centered(text), null, false);
-        }
-        list.setAdapter(new SongAdapter(this, recommendSongs, likedIds, songListener, downloadManager));
-        return list;
-    }
-
-    private View buildHomeHeader() {
-        LinearLayout header = Ui.column(this);
-        header.setPadding(0, Ui.dp(this, 8), 0, 0);
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(Ui.BG);
+        scroll.setFillViewport(true);
+        LinearLayout content = Ui.column(this);
+        content.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 12));
 
         LinearLayout search = Ui.row(this);
         search.setBackground(Ui.rounded(Ui.SURFACE_2, 22, this));
         search.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
-        ImageView searchIcon = Ui.icon(this, R.drawable.ic_search, 19, Ui.MUTED);
-        search.addView(searchIcon);
+        search.addView(Ui.icon(this, R.drawable.ic_search, 19, Ui.MUTED));
         TextView searchHint = Ui.text(this, "搜索歌曲、歌单", 14, Ui.MUTED);
         searchHint.setPadding(Ui.dp(this, 8), 0, 0, 0);
         search.addView(searchHint, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        searchParams.setMargins(Ui.dp(this, 14), 0, Ui.dp(this, 14), Ui.dp(this, 6));
-        header.addView(search, searchParams);
+        searchParams.setMargins(Ui.dp(this, 14), 0, Ui.dp(this, 14), Ui.dp(this, 8));
+        content.addView(search, searchParams);
         search.setOnClickListener(v -> openSearch());
 
-        LinearLayout recTitle = sectionHeaderRow("推荐歌单", null);
-        header.addView(recTitle);
+        content.addView(dailyCard());
+        content.addView(sectionHeaderRow("推荐歌单", null));
         if (recommendedLoading && recommendedPlaylists.isEmpty()) {
-            header.addView(centered("加载中…"));
+            content.addView(centered("加载中…"));
         } else if (recommendedPlaylists.isEmpty()) {
-            header.addView(centered(recommendedError.isEmpty() ? "暂无推荐歌单" : recommendedError));
+            content.addView(centered(recommendedError.isEmpty() ? "暂无推荐歌单" : recommendedError));
         } else {
-            header.addView(playlistStrip(recommendedPlaylists));
+            content.addView(playlistStrip(recommendedPlaylists));
         }
 
-        LinearLayout dailyTitle = sectionHeaderRow("每日推荐", null);
-        header.addView(dailyTitle);
-        return header;
+        scroll.addView(content);
+        pull.setContent(scroll);
+        homeRefresh = pull;
+        return pull;
+    }
+
+    private View dailyCard() {
+        LinearLayout card = Ui.row(this);
+        card.setBackground(Ui.rounded(Ui.SURFACE, 12, this));
+        card.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+
+        ImageView cover = new ImageView(this);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        cover.setBackgroundColor(Ui.SURFACE_2);
+        int size = Ui.dp(this, 60);
+        if (!recommendSongs.isEmpty()) {
+            ImageLoader.get(this).load(recommendSongs.get(0).picUrl, cover, 180);
+        } else {
+            cover.setImageResource(R.drawable.ic_library);
+            cover.setColorFilter(Ui.MUTED);
+        }
+        LinearLayout.LayoutParams coverParams = new LinearLayout.LayoutParams(size, size);
+        coverParams.setMargins(0, 0, Ui.dp(this, 10), 0);
+        card.addView(cover, coverParams);
+
+        String first = recommendSongs.isEmpty() ? null : recommendSongs.get(0).name;
+        String text;
+        if (first != null) {
+            text = "每日推荐 | 从 " + first + " 听起";
+        } else if (recommendLoading) {
+            text = "每日推荐 | 加载中…";
+        } else if (!recommendError.isEmpty()) {
+            text = "每日推荐 | 加载失败";
+        } else {
+            text = "每日推荐 | 暂无推荐";
+        }
+        LinearLayout texts = Ui.column(this);
+        TextView title = Ui.text(this, text, 14, Ui.TEXT);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        texts.addView(title);
+        TextView sub = Ui.text(this, recommendSongs.isEmpty() ? "点击加载每日推荐" : "根据你的口味每日更新", 10, Ui.MUTED);
+        sub.setPadding(0, Ui.dp(this, 3), 0, 0);
+        texts.addView(sub);
+        card.addView(texts, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        card.addView(Ui.icon(this, R.drawable.ic_chevron, 20, Ui.MUTED));
+        card.setOnClickListener(v -> openDaily());
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.setMargins(Ui.dp(this, 14), 0, Ui.dp(this, 14), Ui.dp(this, 4));
+        card.setLayoutParams(params);
+        return card;
+    }
+
+    private void openDaily() {
+        subMode = true;
+        dailyOpen = true;
+        searchOpen = false;
+        localMusicOpen = false;
+        subTitle = "每日推荐";
+        subSongs = recommendSongs;
+        subBack = () -> showTab(0);
+        currentBack = subBack;
+        updateChrome();
+        renderDaily();
+        if (recommendSongs.isEmpty() && !recommendLoading) loadRecommend();
+    }
+
+    private void renderDaily() {
+        if (!dailyOpen) return;
+        content.removeAllViews();
+        if (recommendSongs.isEmpty()) {
+            String message = recommendLoading ? "加载中…"
+                    : (recommendError.isEmpty() ? "暂无每日推荐" : recommendError);
+            Runnable retry = recommendLoading ? null : () -> loadRecommend();
+            content.addView(buildSubMessage("每日推荐", message, retry, subBack));
+        } else {
+            content.addView(buildSongsScreen("每日推荐", recommendSongs, subBack));
+        }
     }
 
     private LinearLayout sectionHeaderRow(String title, Runnable action) {
@@ -447,6 +501,8 @@ public class MainActivity extends Activity {
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.TOP);
+        row.setBaselineAligned(false);
         row.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         int count = 0;
         for (Playlist playlist : items) {
@@ -468,6 +524,7 @@ public class MainActivity extends Activity {
         card.addView(cover, new LinearLayout.LayoutParams(size, size));
 
         TextView title = Ui.text(this, playlist.name, 12, Ui.TEXT);
+        title.setMinLines(2);
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setPadding(0, Ui.dp(this, 6), 0, 0);
@@ -481,6 +538,11 @@ public class MainActivity extends Activity {
     }
 
     private void refreshHome() {
+        refreshHome(false);
+    }
+
+    private void refreshHome(boolean fromPull) {
+        homeRefreshPending = fromPull ? 2 : 0;
         recommendLoaded = false;
         recommendError = "";
         recommendSongs.clear();
@@ -489,11 +551,27 @@ public class MainActivity extends Activity {
         recommendedPlaylists.clear();
         loadRecommend();
         loadRecommended();
-        if (tab == 0 && !subMode) showTab(0);
+    }
+
+    private void homeLoaded() {
+        if (homeRefreshPending > 0) {
+            homeRefreshPending--;
+            if (homeRefreshPending > 0) return;
+            if (homeRefresh != null) homeRefresh.finishRefresh();
+        }
+        if (dailyOpen) {
+            subSongs = recommendSongs;
+            renderDaily();
+        } else if (tab == 0 && currentBack == null) {
+            showTab(0);
+        }
     }
 
     private void loadRecommended() {
-        if (recommendedLoading) return;
+        if (recommendedLoading) {
+            homeLoaded();
+            return;
+        }
         recommendedLoading = true;
         recommendedError = "";
         client.recommendedPlaylists(new NetEaseClient.Callback<List<Playlist>>() {
@@ -504,7 +582,7 @@ public class MainActivity extends Activity {
                 recommendedPlaylists.clear();
                 if (data != null) recommendedPlaylists.addAll(data);
                 saveCache("recommended", Playlist.listToJson(recommendedPlaylists));
-                if (tab == 0 && !subMode) showTab(0);
+                homeLoaded();
             }
 
             @Override
@@ -512,16 +590,18 @@ public class MainActivity extends Activity {
                 recommendedLoading = false;
                 recommendedLoaded = true;
                 recommendedError = "歌单推荐失败：" + message;
-                if (tab == 0 && !subMode) showTab(0);
+                homeLoaded();
             }
         });
     }
 
     private void loadRecommend() {
-        if (recommendLoading) return;
+        if (recommendLoading) {
+            homeLoaded();
+            return;
+        }
         recommendLoading = true;
         recommendError = "";
-        if (tab == 0 && currentBack == null) showTab(0);
         client.dailyRecommend(new NetEaseClient.Callback<List<Song>>() {
             @Override
             public void onSuccess(List<Song> data) {
@@ -530,7 +610,7 @@ public class MainActivity extends Activity {
                 recommendSongs.clear();
                 if (data != null) recommendSongs.addAll(data);
                 saveCache("daily", Song.listToJson(recommendSongs));
-                if (tab == 0 && currentBack == null) showTab(0);
+                homeLoaded();
                 setStatus("每日推荐 " + recommendSongs.size() + " 首");
             }
 
@@ -539,7 +619,7 @@ public class MainActivity extends Activity {
                 recommendLoading = false;
                 recommendLoaded = true;
                 recommendError = message + " (" + code + ")";
-                if (tab == 0 && currentBack == null) showTab(0);
+                homeLoaded();
                 setStatus("每日推荐失败：" + message);
             }
         });
@@ -746,9 +826,15 @@ public class MainActivity extends Activity {
                     new Intent(this, LoginActivity.class), REQ_LOGIN));
             card.addView(login, Ui.lp(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(this, 36)));
         } else {
+            ImageView refresh = Ui.icon(this, R.drawable.ic_refresh, 21, Ui.MUTED);
+            LinearLayout.LayoutParams refreshParams = new LinearLayout.LayoutParams(
+                    Ui.dp(this, 34), Ui.dp(this, 34));
+            refresh.setOnClickListener(v -> refreshMine());
+            card.addView(refresh, refreshParams);
+
             ImageView settings = Ui.icon(this, R.drawable.ic_settings, 22, Ui.MUTED);
             LinearLayout.LayoutParams gearParams = new LinearLayout.LayoutParams(
-                    Ui.dp(this, 36), Ui.dp(this, 36));
+                    Ui.dp(this, 34), Ui.dp(this, 34));
             settings.setOnClickListener(v -> openSettings());
             card.addView(settings, gearParams);
         }
@@ -760,23 +846,48 @@ public class MainActivity extends Activity {
             screen.addView(error);
         }
 
-        screen.addView(sectionHeaderRow("播放历史", this::openHistory));
+        View historyBody = historySongs.isEmpty() ? null : historyStrip();
+        TextView historyMore = Ui.text(this, "查看全部  ›", 11, Ui.ACCENT);
+        historyMore.setPadding(Ui.dp(this, 14), Ui.dp(this, 6), Ui.dp(this, 14), Ui.dp(this, 6));
+        historyMore.setOnClickListener(v -> openHistory());
+        ImageView historyChevron = Ui.icon(this, R.drawable.ic_chevron, 18, Ui.MUTED);
+        LinearLayout historyHeader = Ui.row(this);
+        historyHeader.setPadding(Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 14), Ui.dp(this, 4));
+        TextView historyTitle = Ui.text(this, "播放历史", 15, Ui.TEXT);
+        historyTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        historyHeader.addView(historyTitle, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView historyCount = Ui.text(this, historySongs.size() + " 首", 11, Ui.MUTED);
+        historyCount.setPadding(0, 0, Ui.dp(this, 6), 0);
+        historyHeader.addView(historyCount);
+        historyHeader.addView(historyChevron);
+        historyChevron.setRotation(historyExpanded ? 90 : 0);
+        historyHeader.setOnClickListener(v -> {
+            if (historySongs.isEmpty()) {
+                openHistory();
+                return;
+            }
+            historyExpanded = !historyExpanded;
+            if (historyBody != null) historyBody.setVisibility(historyExpanded ? View.VISIBLE : View.GONE);
+            historyMore.setVisibility(historyExpanded ? View.VISIBLE : View.GONE);
+            historyChevron.animate().rotation(historyExpanded ? 90 : 0).setDuration(150).start();
+        });
+        screen.addView(historyHeader);
         if (historySongs.isEmpty()) {
             screen.addView(centered("还没有播放记录"));
         } else {
-            screen.addView(historyStrip());
+            historyBody.setVisibility(historyExpanded ? View.VISIBLE : View.GONE);
+            screen.addView(historyBody);
+            historyMore.setVisibility(historyExpanded ? View.VISIBLE : View.GONE);
+            screen.addView(historyMore);
         }
 
         if (account != null) {
-            screen.addView(sectionHeaderRow("创建的歌单", null));
+            screen.addView(sectionHeaderRow("创建的歌单", this::openCreatedPlaylists));
             List<Playlist> created = createdPlaylists();
             if (created.isEmpty()) {
                 screen.addView(centered(playlistsLoaded ? "没有创建的歌单" : "加载中…"));
             } else {
-                for (Playlist playlist : created) {
-                    screen.addView(playlistRow(playlist, () -> openPlaylist(playlist)));
-                    screen.addView(divider());
-                }
+                screen.addView(playlistStrip(created));
             }
 
             screen.addView(sectionHeaderRow("收藏的歌单", this::showCollections));
@@ -810,6 +921,8 @@ public class MainActivity extends Activity {
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.TOP);
+        row.setBaselineAligned(false);
         row.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         int count = 0;
         for (Song song : historySongs) {
@@ -824,6 +937,8 @@ public class MainActivity extends Activity {
         HorizontalScrollView scroll = new HorizontalScrollView(this);
         scroll.setHorizontalScrollBarEnabled(false);
         LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.TOP);
+        row.setBaselineAligned(false);
         row.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 4));
         int count = 0;
         for (Album album : items) {
@@ -840,10 +955,11 @@ public class MainActivity extends Activity {
         ImageView cover = new ImageView(this);
         cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
         cover.setBackgroundColor(Ui.SURFACE_2);
-        ImageLoader.get(this).load(coverUrl, cover, 220);
+        ImageLoader.get(this).load(coverUrl, cover, 240);
         int size = Ui.dp(this, 92);
         card.addView(cover, new LinearLayout.LayoutParams(size, size));
         TextView name = Ui.text(this, title, 11, Ui.TEXT);
+        name.setMinLines(2);
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
         name.setPadding(0, Ui.dp(this, 5), 0, 0);
@@ -885,6 +1001,39 @@ public class MainActivity extends Activity {
         playerController.playQueue(historySongs, index);
         updateMiniPlayer();
         setStatus("播放：" + song.name);
+    }
+
+    private void openCreatedPlaylists() {
+        subMode = true;
+        dailyOpen = false;
+        searchOpen = false;
+        localMusicOpen = false;
+        subTitle = "创建的歌单";
+        subSongs = null;
+        subBack = () -> showTab(1);
+        currentBack = subBack;
+        updateChrome();
+        content.removeAllViews();
+        content.addView(buildPlaylistListScreen("创建的歌单", createdPlaylists(), subBack));
+    }
+
+    private View buildPlaylistListScreen(String title, List<Playlist> items, Runnable back) {
+        LinearLayout screen = Ui.column(this);
+        screen.addView(subHeader(title, back));
+        if (items.isEmpty()) {
+            screen.addView(centered("没有创建的歌单"),
+                    Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+            return screen;
+        }
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout rows = Ui.column(this);
+        for (Playlist playlist : items) {
+            rows.addView(playlistRow(playlist, () -> openPlaylist(playlist, this::openCreatedPlaylists)));
+            rows.addView(divider());
+        }
+        scroll.addView(rows);
+        screen.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        return screen;
     }
 
     private void openHistory() {
