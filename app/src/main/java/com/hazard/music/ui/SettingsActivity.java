@@ -11,6 +11,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
@@ -18,6 +19,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.hazard.music.MusicApp;
+import com.hazard.music.R;
 import com.hazard.music.download.DownloadManager;
 import com.hazard.music.store.AppDb;
 import com.hazard.music.util.ImageLoader;
@@ -52,10 +54,8 @@ public class SettingsActivity extends Activity {
                 Ui.dp(this, 24) + navHeight);
 
         LinearLayout top = Ui.row(this);
-        Button back = Ui.button(this, "‹", false);
-        back.setTextSize(22);
-        back.setMinWidth(0);
-        back.setPadding(0, 0, 0, 0);
+        ImageView back = Ui.icon(this, R.drawable.ic_back, 20, Ui.TEXT);
+        back.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
         back.setOnClickListener(v -> finish());
         top.addView(back, Ui.lp(Ui.dp(this, 40), Ui.dp(this, 40)));
         TextView title = Ui.text(this, "设置", 18, Ui.TEXT);
@@ -134,10 +134,21 @@ public class SettingsActivity extends Activity {
             db.putCache("daily", "[]");
             db.putCache("playlists", "[]");
             db.putCache("albums", "[]");
+            db.putCache("recommended", "[]");
             db.putCache("liked", "[]");
             Ui.toast(this, "列表缓存已清除");
         });
         root.addView(clearLists);
+        Button clearHistory = Ui.button(this, "清空播放历史", false);
+        clearHistory.setOnClickListener(v -> {
+            app.db().clearHistory();
+            Ui.toast(this, "播放历史已清空");
+        });
+        LinearLayout.LayoutParams historyGap = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        historyGap.topMargin = Ui.dp(this, 8);
+        root.addView(clearHistory, historyGap);
+
         Button clearImages = Ui.button(this, "清除封面缓存", false);
         clearImages.setOnClickListener(v -> {
             ImageLoader.get(this).clear();

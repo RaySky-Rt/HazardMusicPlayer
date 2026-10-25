@@ -6,6 +6,8 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import org.json.JSONObject;
+
 import com.hazard.music.model.DownloadItem;
 import com.hazard.music.model.Song;
 
@@ -15,7 +17,7 @@ import java.util.List;
 public final class AppDb extends SQLiteOpenHelper {
 
     private static final String NAME = "hazard.db";
-    private static final int VERSION = 1;
+    private static final int VERSION = 2;
 
     public AppDb(Context context) {
         super(context.getApplicationContext(), NAME, null, VERSION);
@@ -29,13 +31,20 @@ public final class AppDb extends SQLiteOpenHelper {
                 + "path TEXT, bytes INTEGER, total INTEGER, state INTEGER,"
                 + "quality TEXT, error TEXT, updated INTEGER)");
         db.execSQL("CREATE TABLE kv (key TEXT PRIMARY KEY, value TEXT, updated INTEGER)");
+        createHistory(db);
+    }
+
+    private static void createHistory(SQLiteDatabase db) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS history ("
+                + "song_id INTEGER PRIMARY KEY,"
+                + "song_json TEXT NOT NULL,"
+                + "played_at INTEGER NOT NULL)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS history_played ON history(played_at DESC)");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS downloads");
-        db.execSQL("DROP TABLE IF EXISTS kv");
-        onCreate(db);
+        if (oldVersion < 2) createHistory(db);
     }
 
     public synchronized void upsert(DownloadItem item) {
@@ -105,6 +114,43 @@ public final class AppDb extends SQLiteOpenHelper {
         values.put("value", value);
         values.put("updated", System.currentTimeMillis());
         getWritableDatabase().insertWithOnConflict("kv", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+    }
+
+    public synchronized void recordHistory(Song song, long playedAt) {
+        if (song == null || song.id <= 0) return;
+        ContentValues values = new ContentValues();
+        values.put("song_id", song.id);
+        values.put("song_json", song.toJson().toString());
+        values.put("played_at", playedAt);
+        SQLiteDatabase db = getWritableDatabase();
+        db.insertWithOnConflict("history", null, values, SQLiteDatabase.CONFLICT_REPLACE);
+        db.execSQL("DELETE FROM history WHERE song_id NOT IN ("
+                + "SELECT song_id FROM history ORDER BY played_at DESC LIMIT 200)");
+    }
+
+    public synchronized List<Song> listHistory(int limit) {
+        List<Song> out = new ArrayList<>();
+        try (Cursor cursor = getReadableDatabase().query("history", new String[]{"song_json"},
+                null, null, null, null, "played_at DESC", String.valueOf(limit))) {
+            while (cursor.moveToNext()) {
+                try {
+                    Song song = Song.from(new JSONObject(cursor.getString(0)));
+                    if (song != null) out.add(song);
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        return out;
+    }
+
+    public synchronized int historyCount() {
+        try (Cursor cursor = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM history", null)) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    public synchronized void clearHistory() {
+        getWritableDatabase().delete("history", null, null);
     }
 
     public synchronized String getCache(String key) {

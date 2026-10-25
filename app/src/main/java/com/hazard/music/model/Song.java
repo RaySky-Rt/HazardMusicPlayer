@@ -40,6 +40,7 @@ public final class Song {
         JSONArray artists = o.optJSONArray("ar");
         if (artists == null) artists = o.optJSONArray("artists");
         StringBuilder artist = new StringBuilder();
+        if (artists == null) artist.append(o.optString("artist", ""));
         if (artists != null) {
             for (int i = 0; i < artists.length(); i++) {
                 JSONObject a = artists.optJSONObject(i);
@@ -53,8 +54,8 @@ public final class Song {
 
         JSONObject al = o.optJSONObject("al");
         if (al == null) al = o.optJSONObject("album");
-        String album = al == null ? "" : al.optString("name", "");
-        String pic = al == null ? "" : al.optString("picUrl", "");
+        String album = al == null ? o.optString("album", "") : al.optString("name", "");
+        String pic = al == null ? o.optString("pic", "") : al.optString("picUrl", "");
 
         long duration = o.optLong("dt", 0);
         if (duration == 0) duration = o.optLong("duration", 0);

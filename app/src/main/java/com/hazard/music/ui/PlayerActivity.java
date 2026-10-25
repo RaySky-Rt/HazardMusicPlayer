@@ -16,6 +16,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.hazard.music.MusicApp;
+import com.hazard.music.R;
 import com.hazard.music.model.Song;
 import com.hazard.music.player.PlayerController;
 import com.hazard.music.util.ImageLoader;
@@ -32,7 +33,7 @@ public class PlayerActivity extends Activity {
     private TextView currentTime;
     private TextView totalTime;
     private SeekBar seekBar;
-    private Button toggleButton;
+    private ImageView toggleButton;
     private boolean userSeeking;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
@@ -61,10 +62,8 @@ public class PlayerActivity extends Activity {
         root.setPadding(Ui.dp(this, 18), Ui.dp(this, 10), Ui.dp(this, 18), Ui.dp(this, 14));
 
         LinearLayout top = Ui.row(this);
-        Button back = Ui.button(this, "‹", false);
-        back.setTextSize(22);
-        back.setMinWidth(0);
-        back.setPadding(0, 0, 0, 0);
+        ImageView back = Ui.icon(this, R.drawable.ic_back, 20, Ui.TEXT);
+        back.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
         back.setOnClickListener(v -> finish());
         top.addView(back, Ui.lp(Ui.dp(this, 40), Ui.dp(this, 40)));
         TextView screenTitle = Ui.text(this, "正在播放", 16, Ui.TEXT);
@@ -122,20 +121,23 @@ public class PlayerActivity extends Activity {
 
         LinearLayout controls = Ui.row(this);
         controls.setGravity(Gravity.CENTER);
-        Button previous = Ui.button(this, "⏮", false);
-        previous.setTextSize(20);
+        ImageView previous = Ui.icon(this, R.drawable.ic_prev, 22, Ui.TEXT);
+        previous.setBackground(Ui.rounded(Ui.SURFACE_2, 24, this));
+        previous.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
         previous.setOnClickListener(v -> {
             controller.previous();
             update();
         });
-        toggleButton = Ui.button(this, "▶", true);
-        toggleButton.setTextSize(20);
+        toggleButton = Ui.icon(this, R.drawable.ic_play, 24, Color.WHITE);
+        toggleButton.setBackground(Ui.rounded(Ui.ACCENT, 24, this));
+        toggleButton.setPadding(Ui.dp(this, 14), Ui.dp(this, 10), Ui.dp(this, 14), Ui.dp(this, 10));
         toggleButton.setOnClickListener(v -> {
             controller.toggle();
             update();
         });
-        Button next = Ui.button(this, "⏭", false);
-        next.setTextSize(20);
+        ImageView next = Ui.icon(this, R.drawable.ic_next, 22, Ui.TEXT);
+        next.setBackground(Ui.rounded(Ui.SURFACE_2, 24, this));
+        next.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
         next.setOnClickListener(v -> {
             controller.next();
             update();
@@ -194,7 +196,7 @@ public class PlayerActivity extends Activity {
             titleView.setText("没有正在播放");
             artistView.setText("");
             qualityView.setText("");
-            toggleButton.setText("▶");
+            toggleButton.setImageResource(R.drawable.ic_play);
             cover.setImageDrawable(null);
             return;
         }
@@ -210,7 +212,8 @@ public class PlayerActivity extends Activity {
             qualityView.setText(controller.quality() + (controller.isTrial() ? " · 试听" : ""));
             qualityView.setTextColor(Ui.ACCENT);
         }
-        toggleButton.setText(controller.isPlaying() ? "⏸" : "▶");
+        toggleButton.setImageResource(controller.isPlaying()
+                ? R.drawable.ic_pause : R.drawable.ic_play);
         ImageLoader.get(this).load(song.picUrl, cover, 400);
         updateProgress();
         handler.removeCallbacks(ticker);
@@ -226,7 +229,6 @@ public class PlayerActivity extends Activity {
             currentTime.setText(formatTime(controller.position()));
         }
         totalTime.setText(formatTime(duration));
-        toggleButton.setText(controller.isPlaying() ? "⏸" : "▶");
     }
 
     private static String formatTime(long ms) {

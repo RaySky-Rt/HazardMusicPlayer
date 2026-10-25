@@ -12,10 +12,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.hazard.music.MusicApp;
+import com.hazard.music.R;
 import com.hazard.music.api.NetEaseClient;
 import com.hazard.music.model.Account;
 
@@ -43,10 +45,8 @@ public class LoginActivity extends Activity {
         root.setPadding(Ui.dp(this, 24), Ui.dp(this, 28), Ui.dp(this, 24), Ui.dp(this, 24));
 
         LinearLayout top = Ui.row(this);
-        android.widget.Button back = Ui.button(this, "‹", false);
-        back.setTextSize(22);
-        back.setMinWidth(0);
-        back.setPadding(0, 0, 0, 0);
+        ImageView back = Ui.icon(this, R.drawable.ic_back, 20, Ui.TEXT);
+        back.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
         back.setOnClickListener(v -> finish());
         top.addView(back, Ui.lp(Ui.dp(this, 40), Ui.dp(this, 40)));
         TextView title = Ui.text(this, "扫码登录", 18, Ui.TEXT);

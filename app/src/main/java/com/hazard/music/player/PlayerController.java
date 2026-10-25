@@ -42,6 +42,7 @@ public final class PlayerController implements Player.Listener {
     private static final String TAG = "Player";
 
     private final Context context;
+    private final MusicApp app;
     private final NetEaseClient client;
     private final Handler main;
     private final SimpleExoPlayer player;
@@ -56,11 +57,12 @@ public final class PlayerController implements Player.Listener {
     private String error = "";
     private int qualityAttempt;
     private int loadToken;
+    private long lastHistorySongId;
     private Listener listener;
 
     public PlayerController(Context context) {
         this.context = context.getApplicationContext();
-        MusicApp app = MusicApp.get(this.context);
+        this.app = MusicApp.get(this.context);
         this.client = app.client;
         this.main = app.main;
 
@@ -127,6 +129,7 @@ public final class PlayerController implements Player.Listener {
         queue.clear();
         queue.addAll(songs);
         index = Math.max(0, Math.min(start, queue.size() - 1));
+        lastHistorySongId = 0;
         PlaybackService.start(context);
         loadCurrent(0);
     }
@@ -441,6 +444,10 @@ public final class PlayerController implements Player.Listener {
     @Override
     public void onIsPlayingChanged(boolean isPlaying) {
         Log.i(TAG, "isPlaying=" + isPlaying + " pos=" + player.getCurrentPosition());
+        if (isPlaying && current != null && current.id != lastHistorySongId) {
+            lastHistorySongId = current.id;
+            app.db().recordHistory(current, System.currentTimeMillis());
+        }
         notifyChanged();
         updateSession();
         updateNotification();

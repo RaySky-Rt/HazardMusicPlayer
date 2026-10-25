@@ -6,9 +6,11 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import com.hazard.music.R;
 import com.hazard.music.download.DownloadManager;
 import com.hazard.music.model.Song;
 
@@ -73,13 +75,11 @@ public final class SongAdapter extends BaseAdapter {
             texts.addView(title);
             texts.addView(sub);
 
-            TextView heart = Ui.text(context, "", 24, Ui.MUTED);
-            heart.setGravity(Gravity.CENTER);
-            heart.setPadding(Ui.dp(context, 6), 0, Ui.dp(context, 6), 0);
+            ImageView heart = new ImageView(context);
+            heart.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
 
-            TextView download = Ui.text(context, "↓", 22, Ui.MUTED);
-            download.setGravity(Gravity.CENTER);
-            download.setPadding(Ui.dp(context, 4), 0, Ui.dp(context, 4), 0);
+            ImageView download = new ImageView(context);
+            download.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
 
             row.addView(texts, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             row.addView(heart, Ui.lp(Ui.dp(context, 48), ViewGroup.LayoutParams.MATCH_PARENT));
@@ -106,13 +106,13 @@ public final class SongAdapter extends BaseAdapter {
         }
         holder.sub.setText(detail);
         boolean liked = likedIds.contains(song.id);
-        holder.heart.setText(liked ? "♥" : "♡");
-        holder.heart.setTextColor(liked ? Ui.ACCENT : Ui.MUTED);
+        holder.heart.setImageResource(liked ? R.drawable.ic_favorite : R.drawable.ic_favorite_border);
+        holder.heart.setColorFilter(liked ? Ui.ACCENT : Ui.MUTED);
 
         holder.heart.setOnClickListener(v -> listener.onLike(song, !likedIds.contains(song.id)));
         boolean downloaded = downloads != null && downloads.isDownloaded(song.id);
-        holder.download.setText(downloaded ? "✓" : "↓");
-        holder.download.setTextColor(downloaded ? Ui.SUCCESS : Ui.MUTED);
+        holder.download.setImageResource(R.drawable.ic_download);
+        holder.download.setColorFilter(downloaded ? Ui.SUCCESS : Ui.MUTED);
         holder.download.setOnClickListener(v -> listener.onDownload(song));
         convertView.setOnClickListener(v -> listener.onSongClick(song));
         return convertView;
@@ -121,10 +121,10 @@ public final class SongAdapter extends BaseAdapter {
     private static final class Holder {
         final TextView title;
         final TextView sub;
-        final TextView heart;
-        final TextView download;
+        final ImageView heart;
+        final ImageView download;
 
-        Holder(TextView title, TextView sub, TextView heart, TextView download) {
+        Holder(TextView title, TextView sub, ImageView heart, ImageView download) {
             this.title = title;
             this.sub = sub;
             this.heart = heart;

@@ -50,7 +50,7 @@ public final class Playlist {
         long creatorId = creator == null ? 0 : creator.optLong("userId", 0);
         return new Playlist(id,
                 o.optString("name", ""),
-                o.optString("coverImgUrl", ""),
+                o.optString("coverImgUrl", o.optString("picUrl", "")),
                 o.optInt("trackCount", 0),
                 o.optInt("specialType", 0),
                 subscribed, creatorName, creatorId);

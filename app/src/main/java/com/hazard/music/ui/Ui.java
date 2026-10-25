@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.ImageView;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -45,6 +46,22 @@ public final class Ui {
         button.setMinHeight(dp(context, 44));
         button.setPadding(dp(context, 12), dp(context, 6), dp(context, 12), dp(context, 6));
         return button;
+    }
+
+    public static ImageView icon(Context context, int drawable, int sizeDp, int tint) {
+        ImageView view = new ImageView(context);
+        view.setImageResource(drawable);
+        view.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        view.setColorFilter(tint);
+        view.setLayoutParams(new LinearLayout.LayoutParams(dp(context, sizeDp), dp(context, sizeDp)));
+        return view;
+    }
+
+    public static android.graphics.drawable.GradientDrawable rounded(int color, int radiusDp, Context context) {
+        android.graphics.drawable.GradientDrawable drawable = new android.graphics.drawable.GradientDrawable();
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(context, radiusDp));
+        return drawable;
     }
 
     public static LinearLayout.LayoutParams lp(int width, int height) {

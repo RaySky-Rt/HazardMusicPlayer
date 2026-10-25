@@ -53,19 +53,20 @@ public final class ImageLoader {
             view.setImageDrawable(null);
             return;
         }
-        Bitmap cached = cache.get(url);
+        String key = url + "@" + targetSize;
+        Bitmap cached = cache.get(key);
         if (cached != null) {
-            view.setTag(url);
+            view.setTag(key);
             view.setImageBitmap(cached);
             return;
         }
-        view.setTag(url);
+        view.setTag(key);
         view.setImageDrawable(null);
         io.execute(() -> {
             Bitmap bitmap = download(url, targetSize);
-            if (bitmap != null) cache.put(url, bitmap);
+            if (bitmap != null) cache.put(key, bitmap);
             main.post(() -> {
-                if (url.equals(view.getTag())) {
+                if (key.equals(view.getTag())) {
                     if (bitmap != null) view.setImageBitmap(bitmap);
                     else view.setImageDrawable(null);
                 }
