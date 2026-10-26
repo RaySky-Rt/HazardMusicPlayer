@@ -17,7 +17,7 @@ public final class Settings {
         SharedPreferences prefs = context.getApplicationContext()
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String value = prefs.getString(KEY_QUALITY, "lossless");
-        if (!"lossless".equals(value) && !"exhigh".equals(value) && !"standard".equals(value)) {
+        if (!"hires".equals(value) && !"lossless".equals(value) && !"exhigh".equals(value) && !"standard".equals(value)) {
             value = "lossless";
         }
         return value;
@@ -36,6 +36,9 @@ public final class Settings {
         }
         if ("exhigh".equals(preferred)) {
             return new String[]{"exhigh", "standard"};
+        }
+        if ("hires".equals(preferred)) {
+            return new String[]{"hires", "lossless", "exhigh", "standard"};
         }
         return new String[]{"lossless", "exhigh", "standard"};
     }
@@ -67,6 +70,7 @@ public final class Settings {
     }
 
     public static String label(String level) {
+        if ("hires".equals(level)) return "Hi-Res";
         if ("lossless".equals(level)) return "无损优先";
         if ("exhigh".equals(level)) return "320 kbps";
         if ("standard".equals(level)) return "标准";

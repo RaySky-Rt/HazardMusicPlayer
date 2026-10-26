@@ -16,6 +16,7 @@ import android.util.Log;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
+import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackException;
@@ -32,6 +33,7 @@ import com.hazard.music.util.Settings;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 public final class PlayerController implements Player.Listener {
@@ -405,8 +407,23 @@ public final class PlayerController implements Player.Listener {
         return trial;
     }
 
+    public void reloadQuality() {
+        if (current == null) return;
+        loadCurrent(0);
+    }
+
     public String quality() {
-        return quality;
+        String rate = sampleRateText();
+        if (quality.isEmpty() || rate.isEmpty()) return quality;
+        return quality + "-" + rate;
+    }
+
+    private String sampleRateText() {
+        Format format = player.getAudioFormat();
+        int sampleRate = format == null ? 0 : format.sampleRate;
+        if (sampleRate <= 0) return "";
+        if (sampleRate % 1000 == 0) return (sampleRate / 1000) + "kHz";
+        return String.format(Locale.US, "%.1fkHz", sampleRate / 1000.0);
     }
 
     public String error() {

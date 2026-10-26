@@ -67,8 +67,8 @@ public class SettingsActivity extends Activity {
         section(root, "播放音质");
         RadioGroup group = new RadioGroup(this);
         group.setOrientation(RadioGroup.VERTICAL);
-        String[] values = {"lossless", "exhigh", "standard"};
-        String[] labels = {"无损优先（FLAC，自动回退 320k）", "320 kbps", "标准"};
+        String[] values = {"hires", "lossless", "exhigh", "standard"};
+        String[] labels = {"Hi-Res（FLAC 24bit，自动回退无损）", "无损优先（FLAC，自动回退 320k）", "320 kbps", "标准"};
         String current = Settings.quality(this);
         for (int i = 0; i < values.length; i++) {
             RadioButton radio = new RadioButton(this);

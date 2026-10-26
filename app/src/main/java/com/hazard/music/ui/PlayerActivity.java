@@ -1,6 +1,7 @@
 package com.hazard.music.ui;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
@@ -28,6 +29,7 @@ import com.hazard.music.model.Account;
 import com.hazard.music.model.Song;
 import com.hazard.music.player.PlayerController;
 import com.hazard.music.util.ImageLoader;
+import com.hazard.music.util.Settings;
 
 import org.json.JSONArray;
 
@@ -133,8 +135,15 @@ public class PlayerActivity extends Activity {
 
         qualityView = Ui.text(this, "", 12, Ui.ACCENT);
         qualityView.setGravity(Gravity.CENTER);
+        qualityView.setPadding(Ui.dp(this, 9), Ui.dp(this, 3), Ui.dp(this, 9), Ui.dp(this, 3));
+        qualityView.setBackground(Ui.rounded(Ui.SURFACE_2, 12, this));
+        qualityView.setCompoundDrawablePadding(Ui.dp(this, 4));
+        qualityView.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_chevron, 0);
+        qualityView.setContentDescription("当前音质，点击切换");
+        qualityView.setOnClickListener(v -> showQualityDialog());
         LinearLayout.LayoutParams qualityParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        qualityParams.gravity = Gravity.CENTER_HORIZONTAL;
         qualityParams.topMargin = Ui.dp(this, 6);
         root.addView(qualityView, qualityParams);
 
@@ -460,6 +469,26 @@ public class PlayerActivity extends Activity {
             window.setAttributes(params);
         }
         dialog.show();
+    }
+
+    private void showQualityDialog() {
+        final String[] values = {"hires", "lossless", "exhigh", "standard"};
+        final String[] labels = {"Hi-Res", "无损", "320 kbps", "标准"};
+        String current = Settings.quality(this);
+        int checked = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i].equals(current)) checked = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("播放音质")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    Settings.setQuality(this, values[which]);
+                    dialog.dismiss();
+                    controller.reloadQuality();
+                    Ui.toast(this, "音质已切换为 " + Settings.label(values[which]));
+                })
+                .setNegativeButton("取消", null)
+                .show();
     }
 
     private void updateProgress() {
