@@ -32,8 +32,23 @@ import com.hazard.music.util.Settings;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public final class PlayerController implements Player.Listener {
+
+    public enum PlayMode {
+        REPEAT_ALL("repeat_all", "列表循环"),
+        REPEAT_ONE("repeat_one", "单曲循环"),
+        SHUFFLE("shuffle", "随机播放");
+
+        final String key;
+        final String label;
+
+        PlayMode(String key, String label) {
+            this.key = key;
+            this.label = label;
+        }
+    }
 
     public interface Listener {
         void onPlaybackChanged();
@@ -48,6 +63,10 @@ public final class PlayerController implements Player.Listener {
     private final SimpleExoPlayer player;
     private final MediaSession session;
     private final List<Song> queue = new ArrayList<>();
+    private final List<Integer> shuffleHistory = new ArrayList<>();
+    private final Random random = new Random();
+    private PlayMode mode;
+    private String queueTitle = "";
 
     private int index = -1;
     private Song current;
@@ -65,6 +84,7 @@ public final class PlayerController implements Player.Listener {
         this.app = MusicApp.get(this.context);
         this.client = app.client;
         this.main = app.main;
+        this.mode = parseMode(Settings.playMode(this.context));
 
         DefaultRenderersFactory factory = new DefaultRenderersFactory(this.context)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
@@ -75,6 +95,7 @@ public final class PlayerController implements Player.Listener {
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .build(), true);
         player.setHandleAudioBecomingNoisy(true);
+        applyRepeatMode();
         player.setWakeMode(C.WAKE_MODE_NETWORK);
         player.addListener(this);
 
@@ -124,13 +145,34 @@ public final class PlayerController implements Player.Listener {
         if (listener != null) main.post(listener::onPlaybackChanged);
     }
 
-    public void playQueue(List<Song> songs, int start) {
+    public void playQueue(List<Song> songs, int start, String title) {
         if (songs == null || songs.isEmpty()) return;
         queue.clear();
         queue.addAll(songs);
+        shuffleHistory.clear();
+        queueTitle = title == null || title.trim().isEmpty() ? "当前播放" : title.trim();
         index = Math.max(0, Math.min(start, queue.size() - 1));
         lastHistorySongId = 0;
+        applyRepeatMode();
         PlaybackService.start(context);
+        loadCurrent(0);
+    }
+
+    public String queueTitle() {
+        return queueTitle;
+    }
+
+    public List<Song> queue() {
+        return new ArrayList<>(queue);
+    }
+
+    public int queueIndex() {
+        return index;
+    }
+
+    public void playAt(int position) {
+        if (position < 0 || position >= queue.size()) return;
+        index = position;
         loadCurrent(0);
     }
 
@@ -223,25 +265,94 @@ public final class PlayerController implements Player.Listener {
 
     public void next() {
         if (queue.isEmpty()) return;
+        if (mode == PlayMode.SHUFFLE) {
+            playRandom();
+            return;
+        }
         if (index + 1 < queue.size()) {
             index++;
             loadCurrent(0);
         } else {
-            player.pause();
-            notifyChanged();
-            updateSession();
-            updateNotification();
+            index = 0;
+            loadCurrent(0);
         }
     }
 
     public void previous() {
         if (queue.isEmpty()) return;
-        if (player.getCurrentPosition() > 3000 || index <= 0) {
+        if (player.getCurrentPosition() > 3000) {
             seekTo(0);
-        } else {
-            index--;
-            loadCurrent(0);
+            return;
         }
+        if (mode == PlayMode.SHUFFLE) {
+            if (!shuffleHistory.isEmpty()) {
+                int previous = shuffleHistory.remove(shuffleHistory.size() - 1);
+                if (previous >= 0 && previous < queue.size()) {
+                    index = previous;
+                    loadCurrent(0);
+                    return;
+                }
+            }
+            seekTo(0);
+            return;
+        }
+        if (index > 0) {
+            index--;
+        } else {
+            index = queue.size() - 1;
+        }
+        loadCurrent(0);
+    }
+
+    private void playRandom() {
+        if (queue.isEmpty()) return;
+        if (queue.size() == 1) {
+            loadCurrent(0);
+            return;
+        }
+        if (index >= 0) {
+            shuffleHistory.add(index);
+            if (shuffleHistory.size() > 100) shuffleHistory.remove(0);
+        }
+        int next = index;
+        while (next == index) next = random.nextInt(queue.size());
+        index = next;
+        loadCurrent(0);
+    }
+
+    public PlayMode playMode() {
+        return mode;
+    }
+
+    public String playModeLabel() {
+        return mode.label;
+    }
+
+    public void cyclePlayMode() {
+        PlayMode[] modes = PlayMode.values();
+        setPlayMode(modes[(mode.ordinal() + 1) % modes.length]);
+    }
+
+    public void setPlayMode(PlayMode next) {
+        if (next == null) next = PlayMode.REPEAT_ALL;
+        if (mode == next) return;
+        mode = next;
+        Settings.setPlayMode(context, mode.key);
+        if (mode == PlayMode.SHUFFLE) shuffleHistory.clear();
+        applyRepeatMode();
+        notifyChanged();
+    }
+
+    private void applyRepeatMode() {
+        player.setRepeatMode(mode == PlayMode.REPEAT_ONE
+                ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
+    }
+
+    private static PlayMode parseMode(String value) {
+        for (PlayMode mode : PlayMode.values()) {
+            if (mode.key.equals(value)) return mode;
+        }
+        return PlayMode.REPEAT_ALL;
     }
 
     public void seekTo(long positionMs) {
@@ -255,6 +366,8 @@ public final class PlayerController implements Player.Listener {
         player.stop();
         player.clearMediaItems();
         queue.clear();
+        shuffleHistory.clear();
+        queueTitle = "";
         index = -1;
         current = null;
         quality = "";
@@ -431,10 +544,22 @@ public final class PlayerController implements Player.Listener {
     public void onPlaybackStateChanged(int state) {
         Log.i(TAG, "state=" + state + " pos=" + player.getCurrentPosition());
         if (state == Player.STATE_ENDED && !queue.isEmpty()) {
+            if (mode == PlayMode.REPEAT_ONE) {
+                player.seekTo(0);
+                player.play();
+                return;
+            }
+            if (mode == PlayMode.SHUFFLE) {
+                next();
+                return;
+            }
             if (index + 1 < queue.size()) {
                 next();
                 return;
             }
+            index = 0;
+            loadCurrent(0);
+            return;
         }
         notifyChanged();
         updateSession();

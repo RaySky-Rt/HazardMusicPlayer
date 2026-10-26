@@ -8,6 +8,7 @@ public final class Settings {
     private static final String PREFS = "settings";
     private static final String KEY_QUALITY = "quality";
     private static final String KEY_TREE = "download_tree";
+    private static final String KEY_PLAY_MODE = "play_mode";
 
     private Settings() {
     }
@@ -47,6 +48,22 @@ public final class Settings {
     public static void setDownloadTree(Context context, String uri) {
         context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY_TREE, uri == null ? "" : uri).apply();
+    }
+
+    public static String playMode(Context context) {
+        SharedPreferences prefs = context.getApplicationContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String value = prefs.getString(KEY_PLAY_MODE, "repeat_all");
+        if (!"repeat_one".equals(value) && !"repeat_all".equals(value)
+                && !"shuffle".equals(value)) {
+            value = "repeat_all";
+        }
+        return value;
+    }
+
+    public static void setPlayMode(Context context, String mode) {
+        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putString(KEY_PLAY_MODE, mode).apply();
     }
 
     public static String label(String level) {
