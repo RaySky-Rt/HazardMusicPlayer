@@ -13,6 +13,7 @@ import android.widget.TextView;
 import com.hazard.music.R;
 import com.hazard.music.download.DownloadManager;
 import com.hazard.music.model.Song;
+import com.hazard.music.util.ImageLoader;
 
 import java.util.List;
 import java.util.Set;
@@ -65,6 +66,14 @@ public final class SongAdapter extends BaseAdapter {
             row.setBackgroundColor(Ui.SURFACE);
             row.setPadding(Ui.dp(context, 12), Ui.dp(context, 9), Ui.dp(context, 6), Ui.dp(context, 9));
 
+            ImageView cover = new ImageView(context);
+            cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            cover.setBackgroundColor(Ui.SURFACE_2);
+            LinearLayout.LayoutParams coverParams = new LinearLayout.LayoutParams(
+                    Ui.dp(context, 44), Ui.dp(context, 44));
+            coverParams.rightMargin = Ui.dp(context, 10);
+            row.addView(cover, coverParams);
+
             LinearLayout texts = Ui.column(context);
             TextView title = Ui.text(context, "", 16, Ui.TEXT);
             title.setSingleLine(true);
@@ -85,13 +94,14 @@ public final class SongAdapter extends BaseAdapter {
             row.addView(heart, Ui.lp(Ui.dp(context, 48), ViewGroup.LayoutParams.MATCH_PARENT));
             row.addView(download, Ui.lp(Ui.dp(context, 34), ViewGroup.LayoutParams.MATCH_PARENT));
             convertView = row;
-            holder = new Holder(title, sub, heart, download);
+            holder = new Holder(cover, title, sub, heart, download);
             convertView.setTag(holder);
         } else {
             holder = (Holder) convertView.getTag();
         }
 
         Song song = getItem(position);
+        ImageLoader.get(context).loadCover(song.picUrl, holder.cover, 96);
         holder.title.setText(song.name);
         StringBuilder detail = new StringBuilder();
         if (!song.artist.isEmpty()) detail.append(song.artist);
@@ -119,12 +129,14 @@ public final class SongAdapter extends BaseAdapter {
     }
 
     private static final class Holder {
+        final ImageView cover;
         final TextView title;
         final TextView sub;
         final ImageView heart;
         final ImageView download;
 
-        Holder(TextView title, TextView sub, ImageView heart, ImageView download) {
+        Holder(ImageView cover, TextView title, TextView sub, ImageView heart, ImageView download) {
+            this.cover = cover;
             this.title = title;
             this.sub = sub;
             this.heart = heart;
