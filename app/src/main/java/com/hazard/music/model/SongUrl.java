@@ -17,9 +17,8 @@ public final class SongUrl {
     }
 
     public String qualityText() {
-        if ("flac".equalsIgnoreCase(type)) {
-            return "无损" + (level.isEmpty() ? "" : " · " + level);
-        }
+        if ("hires".equalsIgnoreCase(level)) return "Hi-Res";
+        if ("lossless".equalsIgnoreCase(level) || "flac".equalsIgnoreCase(type)) return "无损";
         if (br >= 300000) return "320 kbps";
         if (br >= 180000) return "192 kbps";
         if (br > 0) return (br / 1000) + " kbps";

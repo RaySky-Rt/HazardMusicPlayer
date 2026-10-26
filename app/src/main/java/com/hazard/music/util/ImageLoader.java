@@ -3,10 +3,13 @@ package com.hazard.music.util;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Outline;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import android.util.LruCache;
+import android.view.View;
+import android.view.ViewOutlineProvider;
 import android.widget.ImageView;
 
 import java.io.ByteArrayOutputStream;
@@ -39,6 +42,8 @@ public final class ImageLoader {
     private final File diskDir;
     private final Map<String, List<ImageView>> pending = new HashMap<>();
 
+    private static final int COVER_RADIUS_DP = 6;
+
     private ImageLoader(Context context) {
         cache = new LruCache<String, Bitmap>(MAX_BYTES) {
             @Override
@@ -65,6 +70,22 @@ public final class ImageLoader {
         if (files != null) {
             for (File file : files) file.delete();
         }
+    }
+
+    public void loadCover(String url, ImageView view, int targetSize) {
+        applyRoundedCorners(view);
+        load(url, view, targetSize);
+    }
+
+    private static void applyRoundedCorners(ImageView view) {
+        final float radius = COVER_RADIUS_DP * view.getResources().getDisplayMetrics().density;
+        view.setClipToOutline(true);
+        view.setOutlineProvider(new ViewOutlineProvider() {
+            
+            public void getOutline(View v, Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+            }
+        });
     }
 
     public void load(String url, ImageView view, int targetSize) {

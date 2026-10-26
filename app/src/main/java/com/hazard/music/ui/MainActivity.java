@@ -107,7 +107,7 @@ public class MainActivity extends Activity {
     private int tab = 0;
 
     private Account account;
-    private final Set<Long> likedIds = new HashSet<>();
+    private Set<Long> likedIds;
     private final List<Song> recommendSongs = new ArrayList<>();
     private final List<Song> searchSongs = new ArrayList<>();
     private final List<Playlist> playlists = new ArrayList<>();
@@ -177,6 +177,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         app = MusicApp.get(this);
+        likedIds = app.likedIds;
         client = app.client;
         playerController = app.peekPlayerController();
         downloadManager = app.downloads();
@@ -425,7 +426,7 @@ public class MainActivity extends Activity {
         cover.setBackgroundColor(Ui.SURFACE_2);
         int size = Ui.dp(this, 60);
         if (!recommendSongs.isEmpty()) {
-            ImageLoader.get(this).load(recommendSongs.get(0).picUrl, cover, 180);
+            ImageLoader.get(this).loadCover(recommendSongs.get(0).picUrl, cover, 180);
         } else {
             cover.setImageResource(R.drawable.ic_library);
             cover.setColorFilter(Ui.MUTED);
@@ -529,7 +530,7 @@ public class MainActivity extends Activity {
         ImageView cover = new ImageView(this);
         cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
         cover.setBackgroundColor(Ui.SURFACE_2);
-        ImageLoader.get(this).load(playlist.coverUrl, cover, 240);
+        ImageLoader.get(this).loadCover(playlist.coverUrl, cover, 240);
         int size = Ui.dp(this, 112);
         card.addView(cover, new LinearLayout.LayoutParams(size, size));
 
@@ -965,7 +966,7 @@ public class MainActivity extends Activity {
         ImageView cover = new ImageView(this);
         cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
         cover.setBackgroundColor(Ui.SURFACE_2);
-        ImageLoader.get(this).load(coverUrl, cover, 240);
+        ImageLoader.get(this).loadCover(coverUrl, cover, 240);
         int size = Ui.dp(this, 92);
         card.addView(cover, new LinearLayout.LayoutParams(size, size));
         TextView name = Ui.text(this, title, 11, Ui.TEXT);
@@ -1008,7 +1009,7 @@ public class MainActivity extends Activity {
         int index = indexById(historySongs, song.id);
         if (index < 0) return;
         if (playerController == null) playerController = app.playerController();
-        playerController.playQueue(historySongs, index);
+        playerController.playQueue(historySongs, index, "播放历史");
         updateMiniPlayer();
         setStatus("播放：" + song.name);
     }
@@ -1168,7 +1169,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (playerController == null) playerController = app.playerController();
-        playerController.playQueue(queue, index);
+        playerController.playQueue(queue, index, "本地音乐");
         updateMiniPlayer();
         setStatus("本地播放：" + item.song.name);
     }
@@ -1863,7 +1864,8 @@ public class MainActivity extends Activity {
         int position = indexById(queue, song.id);
         if (position < 0) return;
         if (playerController == null) playerController = app.playerController();
-        playerController.playQueue(queue, position);
+        String queueTitle = subTitle == null || subTitle.trim().isEmpty() ? "每日推荐" : subTitle;
+        playerController.playQueue(queue, position, queueTitle);
         updateMiniPlayer();
         setStatus("播放：" + song.name);
     }
@@ -1889,7 +1891,7 @@ public class MainActivity extends Activity {
         }
         miniBar.setVisibility(View.VISIBLE);
         miniCover.setVisibility(View.VISIBLE);
-        ImageLoader.get(this).load(song.picUrl, miniCover, 100);
+        ImageLoader.get(this).loadCover(song.picUrl, miniCover, 100);
         miniTitle.setText(song.name);
         StringBuilder sub = new StringBuilder(song.artist);
         if (playerController.isLoading()) {

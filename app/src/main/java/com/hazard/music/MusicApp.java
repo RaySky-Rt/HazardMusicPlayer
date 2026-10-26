@@ -10,6 +10,8 @@ import com.hazard.music.download.DownloadManager;
 import com.hazard.music.player.PlayerController;
 import com.hazard.music.store.AppDb;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -19,6 +21,7 @@ public class MusicApp extends Application {
     public CookieJar cookies;
     public ExecutorService io;
     public Handler main;
+    public final Set<Long> likedIds = new HashSet<>();
     private PlayerController playerController;
     private AppDb appDb;
     private DownloadManager downloadManager;
