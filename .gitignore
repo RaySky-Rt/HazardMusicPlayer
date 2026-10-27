@@ -9,3 +9,10 @@ PLAN.md
 ENVIRONMENT.md
 draft.md
 NOTICE.md
+
+keystore.properties
+*.jks
+*.keystore
+*.p12
+
+backups/

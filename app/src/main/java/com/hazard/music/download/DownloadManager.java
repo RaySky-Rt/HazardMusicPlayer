@@ -342,8 +342,6 @@ public final class DownloadManager {
     }
 
     private File tempRoot() {
-        File sd = new File("/storage/external_sd/Android/data/" + context.getPackageName() + "/files/tmp");
-        if (ensureDir(sd)) return sd;
         File base = context.getExternalFilesDir(null);
         File tmp = new File(base == null ? context.getFilesDir() : base, "tmp");
         ensureDir(tmp);
@@ -556,16 +554,16 @@ public final class DownloadManager {
     }
 
     private File pickRoot() {
-        File sd = new File("/storage/external_sd/Music/Hazard");
-        if (ensureDir(sd)) return logRoot(sd);
-        File sdApp = new File("/storage/external_sd/Android/data/" + context.getPackageName() + "/files/Music");
-        if (ensureDir(sdApp)) return logRoot(sdApp);
-        File ext = new File(Environment.getExternalStorageDirectory(), "Music/Hazard");
-        if (ensureDir(ext)) return logRoot(ext);
-        File base = context.getExternalFilesDir(null);
-        File fallback = new File(base == null ? context.getFilesDir() : base, "downloads");
-        ensureDir(fallback);
-        return logRoot(fallback);
+        File publicMusic = new File(Environment.getExternalStoragePublicDirectory(
+                Environment.DIRECTORY_MUSIC), "Hazard");
+        if (ensureDir(publicMusic)) return logRoot(publicMusic);
+        File base = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC);
+        if (base == null) base = context.getExternalFilesDir(null);
+        File appMusic = new File(base == null ? context.getFilesDir() : base, "Music");
+        if (ensureDir(appMusic)) return logRoot(appMusic);
+        File internal = new File(context.getFilesDir(), "Music");
+        ensureDir(internal);
+        return logRoot(internal);
     }
 
     private File logRoot(File dir) {

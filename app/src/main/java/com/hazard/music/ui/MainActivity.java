@@ -6,7 +6,6 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.Rect;
 import android.graphics.PorterDuff;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -15,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.Window;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -27,6 +27,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -43,6 +44,10 @@ import com.hazard.music.model.Song;
 import com.hazard.music.player.PlayerController;
 import com.hazard.music.store.AppDb;
 import com.hazard.music.util.ImageLoader;
+
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -68,6 +73,16 @@ public class MainActivity extends Activity {
     private TextView tabMineLabel;
     private LinearLayout topBar;
     private LinearLayout bottomTabs;
+    private LinearLayout rootView;
+    private int statusInset;
+    private int navInset;
+    private boolean legacyNavMode;
+    private PopupWindow legacyNav;
+    private PopupWindow legacyPlayer;
+    private FrameLayout legacyPlayerContainer;
+    private boolean playerInPopup;
+    private int legacyPlayerHeight;
+    private boolean navModeReady;
     private TextView appTitle;
     private boolean subMode;
     private boolean searchOpen;
@@ -175,6 +190,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setupEdgeToEdge();
         app = MusicApp.get(this);
         likedIds = app.likedIds;
         client = app.client;
@@ -197,18 +213,23 @@ public class MainActivity extends Activity {
         downloadManager.setListener(downloadsListener);
         updateMiniPlayer();
         onDownloadsChanged();
+        syncLegacyPlayer();
+        if (legacyNavMode) showLegacyNav();
     }
 
     @Override
     protected void onPause() {
         if (playerController != null) playerController.setListener(null);
         if (downloadManager != null) downloadManager.setListener(null);
+        hideLegacyNav();
+        hideLegacyPlayer();
         super.onPause();
     }
 
     private void buildRoot() {
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
+        rootView = root;
 
         topBar = Ui.row(this);
         topBar.setBackgroundColor(Ui.BG);
@@ -227,7 +248,8 @@ public class MainActivity extends Activity {
         root.addView(content, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         miniBar = Ui.row(this);
-        miniBar.setBackgroundColor(Ui.SURFACE_2);
+        miniBar.setBackground(Ui.rounded(Ui.SURFACE_2, 16, this));
+        miniBar.setElevation(Ui.dp(this, 4));
         miniBar.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8));
         miniBar.setVisibility(View.GONE);
         miniBar.setOnClickListener(v -> startActivity(new Intent(this, PlayerActivity.class)));
@@ -273,7 +295,10 @@ public class MainActivity extends Activity {
                 updateMiniPlayer();
             }
         });
-        root.addView(miniBar, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams miniParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        miniParams.setMargins(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 8));
+        root.addView(miniBar, miniParams);
 
         bottomTabs = Ui.row(this);
         bottomTabs.setBackgroundColor(Ui.SURFACE);
@@ -281,17 +306,29 @@ public class MainActivity extends Activity {
         bottomTabs.addView(navItem(R.drawable.ic_home, "首页", 0), tabParams());
         bottomTabs.addView(navItem(R.drawable.ic_person, "我的", 1), tabParams());
         root.addView(bottomTabs, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 52)));
-        root.post(() -> {
-            Rect visible = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
-            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-            int expected = getResources().getDisplayMetrics().heightPixels - visible.top - navHeight;
-            int inset = Math.max(0, Math.min(root.getHeight() - expected, navHeight));
-            if (inset > 0) root.setPadding(0, 0, 0, inset);
-        });
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 56)));
         setContentView(root);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            statusInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            boolean legacy = navInset == 0 && realDisplayHeight() <= 800;
+            if (!navModeReady || legacy != legacyNavMode) {
+                navModeReady = true;
+                switchNavMode(legacy);
+            }
+            applyRootInsets();
+            if (!legacyNavMode) {
+                LinearLayout.LayoutParams barParams = (LinearLayout.LayoutParams) bottomTabs.getLayoutParams();
+                if (barParams != null) {
+                    barParams.height = Ui.dp(this, 56) + navInset;
+                    bottomTabs.setLayoutParams(barParams);
+                }
+                bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2),
+                        Ui.dp(this, 4), Ui.dp(this, 2) + navInset);
+            }
+            return insets;
+        });
+        root.requestApplyInsets();
         updateTabs();
         updateChrome();
     }
@@ -336,6 +373,12 @@ public class MainActivity extends Activity {
     private void updateChrome() {
         topBar.setVisibility(subMode ? View.GONE : View.VISIBLE);
         bottomTabs.setVisibility(subMode ? View.GONE : View.VISIBLE);
+        applyRootInsets();
+        if (legacyNavMode) {
+            if (subMode) hideLegacyNav(); else showLegacyNav();
+        } else {
+            bottomTabs.setVisibility(subMode ? View.GONE : View.VISIBLE);
+        }
         if (subMode) return;
         String[] titles = {"首页", "我的"};
         appTitle.setText(titles[Math.max(0, Math.min(1, tab))]);
@@ -402,7 +445,8 @@ public class MainActivity extends Activity {
             content.addView(playlistStrip(recommendedPlaylists));
         }
 
-        scroll.addView(content);
+        scroll.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         pull.setContent(scroll);
         homeRefresh = pull;
         return pull;
@@ -939,7 +983,8 @@ public class MainActivity extends Activity {
         screen.addView(divider());
         screen.addView(navRow(R.drawable.ic_settings, "设置", "音质、目录、账号与缓存", this::openSettings));
 
-        scroll.addView(screen);
+        scroll.addView(screen, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return scroll;
     }
 
@@ -1057,7 +1102,8 @@ public class MainActivity extends Activity {
             rows.addView(playlistRow(playlist, () -> openPlaylist(playlist, this::openCreatedPlaylists)));
             rows.addView(divider());
         }
-        scroll.addView(rows);
+        scroll.addView(rows, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         screen.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return screen;
     }
@@ -1494,7 +1540,8 @@ public class MainActivity extends Activity {
             }
         }
 
-        scroll.addView(root);
+        scroll.addView(root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         screen.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return screen;
     }
@@ -1897,6 +1944,7 @@ public class MainActivity extends Activity {
             return;
         }
         miniBar.setVisibility(View.VISIBLE);
+        syncLegacyPlayer();
         miniCover.setVisibility(View.VISIBLE);
         ImageLoader.get(this).loadCover(song.picUrl, miniCover, 100);
         miniTitle.setText(song.name);
@@ -1917,6 +1965,169 @@ public class MainActivity extends Activity {
     private void bindPlayerController() {
         if (playerController == null) playerController = app.playerController();
         if (playerController != null) playerController.setListener(playbackListener);
+    }
+
+    private void setupEdgeToEdge() {
+        Window window = getWindow();
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+    }
+
+    private void switchNavMode(boolean legacy) {
+        legacyNavMode = legacy;
+        if (rootView == null) return;
+        if (legacy) {
+            dismissLegacyNav();
+            if (bottomTabs.getParent() != null) {
+                ((ViewGroup) bottomTabs.getParent()).removeView(bottomTabs);
+            }
+            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+            if (navHeight <= 0) navHeight = Ui.dp(this, 48);
+            bottomTabs.setLayoutParams(new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, navHeight));
+            bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2),
+                    Ui.dp(this, 4), Ui.dp(this, 2));
+            legacyNav = new PopupWindow(bottomTabs, ViewGroup.LayoutParams.MATCH_PARENT,
+                    navHeight, false);
+            legacyNav.setClippingEnabled(false);
+            legacyNav.setFocusable(false);
+            legacyNav.setTouchable(true);
+            legacyNav.setOutsideTouchable(false);
+            legacyNav.setBackgroundDrawable(null);
+            rootView.post(this::showLegacyNav);
+        } else {
+            dismissLegacyNav();
+            if (bottomTabs.getParent() != null) {
+                ((ViewGroup) bottomTabs.getParent()).removeView(bottomTabs);
+            }
+            rootView.addView(bottomTabs, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 56)));
+            bottomTabs.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void showLegacyNav() {
+        if (!legacyNavMode || subMode || legacyNav == null || rootView == null) return;
+        if (playerInPopup) syncLegacyPlayer();
+        if (rootView.getHeight() <= 0) {
+            rootView.postDelayed(this::showLegacyNav, 100);
+            return;
+        }
+        bottomTabs.setVisibility(View.VISIBLE);
+        if (!legacyNav.isShowing()) {
+            legacyNav.showAtLocation(rootView, Gravity.TOP, 0,
+                    realDisplayHeight() - legacyNav.getHeight());
+        }
+    }
+
+    private void hideLegacyNav() {
+        if (legacyNav != null && legacyNav.isShowing()) legacyNav.dismiss();
+    }
+
+    private void dismissLegacyNav() {
+        hideLegacyNav();
+        if (legacyNav != null) {
+            legacyNav.setContentView(null);
+            legacyNav = null;
+        }
+    }
+
+    private void syncLegacyPlayer() {
+        if (miniBar == null) return;
+        boolean wantPopup = legacyNavMode && subMode && miniBar.getVisibility() == View.VISIBLE;
+        if (wantPopup) {
+            if (!playerInPopup) {
+                int cardHeight = miniBar.getHeight();
+                if (cardHeight <= 0) cardHeight = Ui.dp(this, 64);
+                int side = Ui.dp(this, 12);
+                int bottom = Ui.dp(this, 8);
+                if (miniBar.getParent() != null) {
+                    ((ViewGroup) miniBar.getParent()).removeView(miniBar);
+                }
+                miniBar.setLayoutParams(new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, cardHeight, Gravity.BOTTOM));
+                legacyPlayerContainer = new FrameLayout(this);
+                legacyPlayerContainer.setPadding(side, 0, side, bottom);
+                legacyPlayerContainer.addView(miniBar, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, cardHeight, Gravity.BOTTOM));
+                legacyPlayerHeight = cardHeight + bottom;
+                legacyPlayer = new PopupWindow(legacyPlayerContainer,
+                        ViewGroup.LayoutParams.MATCH_PARENT, legacyPlayerHeight, false);
+                legacyPlayer.setClippingEnabled(false);
+                legacyPlayer.setFocusable(false);
+                legacyPlayer.setTouchable(true);
+                legacyPlayer.setOutsideTouchable(false);
+                legacyPlayer.setBackgroundDrawable(null);
+                playerInPopup = true;
+            }
+            if (legacyPlayer != null && !legacyPlayer.isShowing() && rootView != null) {
+                legacyPlayer.showAtLocation(rootView, Gravity.TOP, 0,
+                        realDisplayHeight() - legacyPlayerHeight);
+            }
+        } else {
+            hideLegacyPlayer();
+            if (miniBar.getParent() != null && miniBar.getParent() != rootView) {
+                ((ViewGroup) miniBar.getParent()).removeView(miniBar);
+            }
+            if (rootView != null && miniBar.getParent() == null) {
+                LinearLayout.LayoutParams miniParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                miniParams.setMargins(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 8));
+                rootView.addView(miniBar, miniParams);
+            }
+            legacyPlayerContainer = null;
+            legacyPlayer = null;
+            playerInPopup = false;
+        }
+        applyRootInsets();
+    }
+
+    private void hideLegacyPlayer() {
+        if (legacyPlayer != null && legacyPlayer.isShowing()) legacyPlayer.dismiss();
+    }
+
+    private int realDisplayHeight() {
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        return metrics.heightPixels;
+    }
+
+    private void applyRootInsets() {
+        if (rootView == null) return;
+        View parent = (View) rootView.getParent();
+        int targetHeight = parent != null ? parent.getHeight() : 0;
+        int displayHeight = realDisplayHeight();
+        if (legacyNavMode) {
+            if (playerInPopup && legacyPlayerHeight > 0) {
+                targetHeight = displayHeight - legacyPlayerHeight;
+            } else {
+                int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+                int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+                if (navHeight <= 0) navHeight = Ui.dp(this, 48);
+                targetHeight = displayHeight - navHeight;
+            }
+        }
+        if (targetHeight > 0 && rootView.getLayoutParams() != null) {
+            rootView.getLayoutParams().height = targetHeight;
+            rootView.setLayoutParams(rootView.getLayoutParams());
+        }
+        rootView.setPadding(0, statusInset, 0, subMode && !legacyNavMode ? navInset : 0);
+        if (parent != null) {
+            parent.setBackgroundColor(legacyNavMode ? Ui.BG : Ui.SURFACE);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        hideLegacyNav();
+        hideLegacyPlayer();
+        super.onDestroy();
     }
 
     @Override

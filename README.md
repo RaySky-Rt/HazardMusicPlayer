@@ -1,25 +1,81 @@
-# HazardMusicPlayer
+# Hazard Music Player
 
-面向低版本低配置安卓设备的轻量第三方网易云音乐客户端
+面向低版本、低配置 Android 音乐播放器的轻量第三方网易云音乐客户端。
+
+![alt text](appIcon/hmp_icon_256px.png)
 
 ## 功能
 
-- 首页每日推荐、搜索、推荐歌单
-- 同步红心歌单/创建的歌单/收藏的歌单/收藏的专辑
-- 在线播放 最高支持48kHz Flac
-- 下载歌曲到本地离线播放
-- 本地播放历史
+### 首页
+
+- 每日推荐歌曲
+- 个性化推荐歌单
+- 推荐歌单横向浏览
+- 歌曲与歌单搜索
+
+### 歌单与歌曲列表
+
+- 同步“我喜欢的音乐”、创建的歌单、收藏的歌单、收藏的专辑
+- 支持收藏/取消收藏歌曲
+
+### 播放
+
+- 支持在线无损播放与本地离线播放
+- 支持列表循环、单曲循环、随机播放
+- 支持上一首、下一首和播放队列查看
+- 支持定时停止播放
+- 支持最高 96kHz 24bit HiRes 音质在线播放/本地下载
+
+### 其他
+
+- 支持下载管理与断点续传
+- 支持本地播放历史
 
 ## 最低运行配置
 
-- 至少30MB可用储存空间
-- 至少10MB可用RAM
-- 安卓6.0及以上
+- Android 6.0（API 23）及以上
+- 建议至少 50MB 可用存储空间
+- 建议至少 30MB 可用运行内存
+
+## 构建
+
+项目使用 Gradle Wrapper，需要 JDK 11 和 Android SDK 34。
+
+```bash
+./gradlew :app:assembleDebug
+```
+
+Release 构建：
+
+```bash
+./gradlew :app:assembleRelease
+```
+
+配置：
+
+- `compileSdk 34`
+- `minSdk 23`
+- `targetSdk 28`
+- `abiFilters armeabi-v7a, arm64-v8a`
+
+
+
+## 开源引用
+
+本项目使用或内嵌了以下开源项目与库：
+
+| 项目 / 库 | 用途 | 许可证 |
+| --- | --- | --- |
+| [ExoPlayer](https://github.com/google/ExoPlayer) | 音频播放引擎 | Apache License 2.0 |
+| [ExoPlayer FLAC Extension](https://github.com/google/ExoPlayer/tree/release-v2/extensions/flac) | FLAC 解码扩展 | Apache License 2.0 |
+| [libFLAC](https://xiph.org/flac/) | FLAC 原生解码（32/64 位） | BSD 3-Clause |
+| [ZXing](https://github.com/zxing/zxing) | 二维码生成/扫码登录 | Apache License 2.0 |
+| [AndroidX Core](https://developer.android.com/jetpack/androidx/releases/core) | WindowInsets/兼容支持 | Apache License 2.0 |
+| [AndroidX Annotation](https://developer.android.com/jetpack/androidx/releases/annotation) | Android 注解支持 | Apache License 2.0 |
+| [Google Material Icons](https://github.com/google/material-design-icons) | 界面图标 |  Apache License 2.0 |
+| [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) | 网易云 API 协议参考 | MIT |
+
 
 ## 免责声明
 
-仅供个人学习与自用。接口来自非官方网易云 API，可能随时变化；请遵守网易云音乐用户协议，不要用于商业分发。
-
-## 图标
-
-界面图标来自 Google Material Icons（Apache 2.0）。
+仅供个人学习使用。接口来自非官方网易云 API，禁止用于商业分发。
