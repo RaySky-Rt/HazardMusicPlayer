@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.Window;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
@@ -44,6 +45,10 @@ import com.hazard.music.player.PlayerController;
 import com.hazard.music.store.AppDb;
 import com.hazard.music.util.ImageLoader;
 
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -68,8 +73,12 @@ public class MainActivity extends Activity {
     private TextView tabMineLabel;
     private LinearLayout topBar;
     private LinearLayout bottomTabs;
-    private PopupWindow navPopup;
-    private View rootAnchor;
+    private LinearLayout rootView;
+    private int statusInset;
+    private int navInset;
+    private boolean legacyNavMode;
+    private PopupWindow legacyNav;
+    private boolean navModeReady;
     private TextView appTitle;
     private boolean subMode;
     private boolean searchOpen;
@@ -177,6 +186,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setupEdgeToEdge();
         app = MusicApp.get(this);
         likedIds = app.likedIds;
         client = app.client;
@@ -199,23 +209,21 @@ public class MainActivity extends Activity {
         downloadManager.setListener(downloadsListener);
         updateMiniPlayer();
         onDownloadsChanged();
-        if (rootAnchor != null) rootAnchor.post(this::showNavPopup);
+        if (legacyNavMode) showLegacyNav();
     }
 
     @Override
     protected void onPause() {
         if (playerController != null) playerController.setListener(null);
         if (downloadManager != null) downloadManager.setListener(null);
-        hideNavPopup();
+        hideLegacyNav();
         super.onPause();
     }
 
     private void buildRoot() {
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
-        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-        int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-        root.setPadding(0, 0, 0, navHeight);
+        rootView = root;
 
         topBar = Ui.row(this);
         topBar.setBackgroundColor(Ui.BG);
@@ -287,9 +295,31 @@ public class MainActivity extends Activity {
         bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2), Ui.dp(this, 4), Ui.dp(this, 2));
         bottomTabs.addView(navItem(R.drawable.ic_home, "首页", 0), tabParams());
         bottomTabs.addView(navItem(R.drawable.ic_person, "我的", 1), tabParams());
+        root.addView(bottomTabs, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 56)));
         setContentView(root);
-        rootAnchor = root;
-        root.post(this::showNavPopup);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            statusInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
+            navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
+            boolean legacy = navInset == 0
+                    && getResources().getDisplayMetrics().heightPixels <= 800;
+            if (!navModeReady || legacy != legacyNavMode) {
+                navModeReady = true;
+                switchNavMode(legacy);
+            }
+            applyRootInsets();
+            if (!legacyNavMode) {
+                LinearLayout.LayoutParams barParams = (LinearLayout.LayoutParams) bottomTabs.getLayoutParams();
+                if (barParams != null) {
+                    barParams.height = Ui.dp(this, 56) + navInset;
+                    bottomTabs.setLayoutParams(barParams);
+                }
+                bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2),
+                        Ui.dp(this, 4), Ui.dp(this, 2) + navInset);
+            }
+            return insets;
+        });
+        root.requestApplyInsets();
         updateTabs();
         updateChrome();
     }
@@ -334,11 +364,13 @@ public class MainActivity extends Activity {
     private void updateChrome() {
         topBar.setVisibility(subMode ? View.GONE : View.VISIBLE);
         bottomTabs.setVisibility(subMode ? View.GONE : View.VISIBLE);
-        if (subMode) {
-            hideNavPopup();
-            return;
+        applyRootInsets();
+        if (legacyNavMode) {
+            if (subMode) hideLegacyNav(); else showLegacyNav();
+        } else {
+            bottomTabs.setVisibility(subMode ? View.GONE : View.VISIBLE);
         }
-        if (rootAnchor != null) rootAnchor.post(this::showNavPopup);
+        if (subMode) return;
         String[] titles = {"首页", "我的"};
         appTitle.setText(titles[Math.max(0, Math.min(1, tab))]);
     }
@@ -1925,40 +1957,98 @@ public class MainActivity extends Activity {
         if (playerController != null) playerController.setListener(playbackListener);
     }
 
-    private void showNavPopup() {
-        if (subMode || isFinishing() || rootAnchor == null) return;
-        if (rootAnchor.getHeight() <= 0) {
-            rootAnchor.postDelayed(this::showNavPopup, 120);
+    private void setupEdgeToEdge() {
+        Window window = getWindow();
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= 29) {
+            window.setStatusBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(false);
+        }
+    }
+
+    private void switchNavMode(boolean legacy) {
+        legacyNavMode = legacy;
+        if (rootView == null) return;
+        if (legacy) {
+            dismissLegacyNav();
+            if (bottomTabs.getParent() != null) {
+                ((ViewGroup) bottomTabs.getParent()).removeView(bottomTabs);
+            }
+            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+            if (navHeight <= 0) navHeight = Ui.dp(this, 48);
+            bottomTabs.setLayoutParams(new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, navHeight));
+            bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2),
+                    Ui.dp(this, 4), Ui.dp(this, 2));
+            legacyNav = new PopupWindow(bottomTabs, ViewGroup.LayoutParams.MATCH_PARENT,
+                    navHeight, false);
+            legacyNav.setClippingEnabled(false);
+            legacyNav.setFocusable(false);
+            legacyNav.setTouchable(true);
+            legacyNav.setOutsideTouchable(false);
+            legacyNav.setBackgroundDrawable(null);
+            rootView.post(this::showLegacyNav);
+        } else {
+            dismissLegacyNav();
+            if (bottomTabs.getParent() != null) {
+                ((ViewGroup) bottomTabs.getParent()).removeView(bottomTabs);
+            }
+            rootView.addView(bottomTabs, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 56)));
+            bottomTabs.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void showLegacyNav() {
+        if (!legacyNavMode || subMode || legacyNav == null || rootView == null) return;
+        if (rootView.getHeight() <= 0) {
+            rootView.postDelayed(this::showLegacyNav, 100);
             return;
         }
-        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-        int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-        if (navHeight <= 0) return;
         bottomTabs.setVisibility(View.VISIBLE);
-        bottomTabs.setLayoutParams(new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, navHeight));
-        if (navPopup == null) {
-            navPopup = new PopupWindow(bottomTabs,
-                    ViewGroup.LayoutParams.MATCH_PARENT, navHeight, false);
-            navPopup.setClippingEnabled(false);
-            navPopup.setFocusable(false);
-            navPopup.setTouchable(true);
-            navPopup.setOutsideTouchable(false);
-            navPopup.setBackgroundDrawable(null);
-        }
-        if (!navPopup.isShowing()) {
-            navPopup.showAtLocation(rootAnchor, Gravity.TOP, 0,
+        if (!legacyNav.isShowing()) {
+            legacyNav.showAtLocation(rootView, Gravity.TOP, 0,
                     getResources().getDisplayMetrics().heightPixels);
         }
     }
 
-    private void hideNavPopup() {
-        if (navPopup != null && navPopup.isShowing()) navPopup.dismiss();
+    private void hideLegacyNav() {
+        if (legacyNav != null && legacyNav.isShowing()) legacyNav.dismiss();
+    }
+
+    private void dismissLegacyNav() {
+        hideLegacyNav();
+        if (legacyNav != null) {
+            legacyNav.setContentView(null);
+            legacyNav = null;
+        }
+    }
+
+    private void applyRootInsets() {
+        if (rootView == null) return;
+        View parent = (View) rootView.getParent();
+        int targetHeight = parent != null ? parent.getHeight() : 0;
+        int displayHeight = getResources().getDisplayMetrics().heightPixels;
+        if (legacyNavMode) {
+            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+            if (navHeight <= 0) navHeight = Ui.dp(this, 48);
+            targetHeight = displayHeight - navHeight;
+        }
+        if (targetHeight > 0 && rootView.getLayoutParams() != null) {
+            rootView.getLayoutParams().height = targetHeight;
+            rootView.setLayoutParams(rootView.getLayoutParams());
+        }
+        rootView.setPadding(0, statusInset, 0, subMode && !legacyNavMode ? navInset : 0);
+        if (parent != null) parent.setBackgroundColor(legacyNavMode ? Ui.BG : Ui.SURFACE);
     }
 
     @Override
     protected void onDestroy() {
-        hideNavPopup();
+        hideLegacyNav();
         super.onDestroy();
     }
 

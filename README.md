@@ -32,7 +32,6 @@
 ## 最低运行配置
 
 - Android 6.0（API 23）及以上
-- armeabi-v7a 设备
 - 建议至少 50MB 可用存储空间
 - 建议至少 30MB 可用运行内存
 
@@ -55,7 +54,6 @@ Release 构建：
 - `compileSdk 34`
 - `minSdk 23`
 - `targetSdk 28`
-- `abiFilters armeabi-v7a`
 
 ### Release 签名
 
@@ -77,12 +75,11 @@ keyPassword=your_key_password
 | 项目 / 库 | 用途 | 许可证 |
 | --- | --- | --- |
 | [ExoPlayer](https://github.com/google/ExoPlayer) | 音频播放引擎 | Apache License 2.0 |
-| [ExoPlayer FLAC Extension](https://github.com/google/ExoPlayer/tree/release-v2/extensions/flac) | FLAC 解码扩展 | Apache License 2.0 |
-| [libFLAC](https://xiph.org/flac/) | FLAC 原生解码 | BSD 3-Clause |
 | [ZXing](https://github.com/zxing/zxing) | 二维码生成/扫码登录 | Apache License 2.0 |
+| [AndroidX Core](https://developer.android.com/jetpack/androidx/releases/core) | WindowInsets/兼容支持 | Apache License 2.0 |
 | [AndroidX Annotation](https://developer.android.com/jetpack/androidx/releases/annotation) | Android 注解支持 | Apache License 2.0 |
 | [Google Material Icons](https://github.com/google/material-design-icons) | 界面图标 |  Apache License 2.0 |
-| [网易云音乐 Node.js API Services (Half Refactor & Enhanced) ](https://github.com/google/material-design-icons) | 网易云api | MIT |
+| [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) | 网易云 API 协议参考 | MIT |
 
 
 ## 免责声明

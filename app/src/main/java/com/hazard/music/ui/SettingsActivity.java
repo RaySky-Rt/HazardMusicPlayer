@@ -45,10 +45,7 @@ public class SettingsActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(Ui.BG);
         LinearLayout root = Ui.column(this);
-        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-        int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-        root.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16),
-                Ui.dp(this, 24) + navHeight);
+        root.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 24));
 
         LinearLayout top = Ui.row(this);
         ImageView back = Ui.icon(this, R.drawable.ic_back, 20, Ui.TEXT);
@@ -119,7 +116,7 @@ public class SettingsActivity extends Activity {
         restoreParams.topMargin = Ui.dp(this, 8);
         root.addView(restoreTree, restoreParams);
         TextView safNote = Ui.text(this,
-                "注：部分 FiiO 固件的文件选择器没有“选择”按钮，无法确认 SAF 目录；此时请使用默认 SD 专属目录。",
+                "注：部分系统的文件选择器没有“选择”按钮；若无法确认，请使用默认目录。",
                 11, Ui.MUTED);
         safNote.setPadding(0, Ui.dp(this, 6), 0, 0);
         root.addView(safNote);
