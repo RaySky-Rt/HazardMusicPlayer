@@ -6,7 +6,6 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.Rect;
 import android.graphics.PorterDuff;
 import android.graphics.Typeface;
 import android.graphics.drawable.ColorDrawable;
@@ -27,6 +26,7 @@ import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -68,6 +68,8 @@ public class MainActivity extends Activity {
     private TextView tabMineLabel;
     private LinearLayout topBar;
     private LinearLayout bottomTabs;
+    private PopupWindow navPopup;
+    private View rootAnchor;
     private TextView appTitle;
     private boolean subMode;
     private boolean searchOpen;
@@ -197,12 +199,14 @@ public class MainActivity extends Activity {
         downloadManager.setListener(downloadsListener);
         updateMiniPlayer();
         onDownloadsChanged();
+        if (rootAnchor != null) rootAnchor.post(this::showNavPopup);
     }
 
     @Override
     protected void onPause() {
         if (playerController != null) playerController.setListener(null);
         if (downloadManager != null) downloadManager.setListener(null);
+        hideNavPopup();
         super.onPause();
     }
 
@@ -280,18 +284,9 @@ public class MainActivity extends Activity {
         bottomTabs.setPadding(Ui.dp(this, 4), Ui.dp(this, 2), Ui.dp(this, 4), Ui.dp(this, 2));
         bottomTabs.addView(navItem(R.drawable.ic_home, "首页", 0), tabParams());
         bottomTabs.addView(navItem(R.drawable.ic_person, "我的", 1), tabParams());
-        root.addView(bottomTabs, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 52)));
-        root.post(() -> {
-            Rect visible = new Rect();
-            getWindow().getDecorView().getWindowVisibleDisplayFrame(visible);
-            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-            int expected = getResources().getDisplayMetrics().heightPixels - visible.top - navHeight;
-            int inset = Math.max(0, Math.min(root.getHeight() - expected, navHeight));
-            if (inset > 0) root.setPadding(0, 0, 0, inset);
-        });
         setContentView(root);
+        rootAnchor = root;
+        root.post(this::showNavPopup);
         updateTabs();
         updateChrome();
     }
@@ -336,7 +331,11 @@ public class MainActivity extends Activity {
     private void updateChrome() {
         topBar.setVisibility(subMode ? View.GONE : View.VISIBLE);
         bottomTabs.setVisibility(subMode ? View.GONE : View.VISIBLE);
-        if (subMode) return;
+        if (subMode) {
+            hideNavPopup();
+            return;
+        }
+        if (rootAnchor != null) rootAnchor.post(this::showNavPopup);
         String[] titles = {"首页", "我的"};
         appTitle.setText(titles[Math.max(0, Math.min(1, tab))]);
     }
@@ -1917,6 +1916,43 @@ public class MainActivity extends Activity {
     private void bindPlayerController() {
         if (playerController == null) playerController = app.playerController();
         if (playerController != null) playerController.setListener(playbackListener);
+    }
+
+    private void showNavPopup() {
+        if (subMode || isFinishing() || rootAnchor == null) return;
+        if (rootAnchor.getHeight() <= 0) {
+            rootAnchor.postDelayed(this::showNavPopup, 120);
+            return;
+        }
+        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+        if (navHeight <= 0) return;
+        bottomTabs.setVisibility(View.VISIBLE);
+        bottomTabs.setLayoutParams(new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, navHeight));
+        if (navPopup == null) {
+            navPopup = new PopupWindow(bottomTabs,
+                    ViewGroup.LayoutParams.MATCH_PARENT, navHeight, false);
+            navPopup.setClippingEnabled(false);
+            navPopup.setFocusable(false);
+            navPopup.setTouchable(true);
+            navPopup.setOutsideTouchable(false);
+            navPopup.setBackgroundDrawable(null);
+        }
+        if (!navPopup.isShowing()) {
+            navPopup.showAtLocation(rootAnchor, Gravity.TOP, 0,
+                    getResources().getDisplayMetrics().heightPixels);
+        }
+    }
+
+    private void hideNavPopup() {
+        if (navPopup != null && navPopup.isShowing()) navPopup.dismiss();
+    }
+
+    @Override
+    protected void onDestroy() {
+        hideNavPopup();
+        super.onDestroy();
     }
 
     @Override
