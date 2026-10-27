@@ -2,6 +2,8 @@
 
 面向低版本、低配置 Android 音乐播放器的轻量第三方网易云音乐客户端。
 
+![alt text](appIcon/hmp_icon_256px.png)
+
 ## 功能
 
 ### 首页
@@ -56,18 +58,7 @@ Release 构建：
 - `targetSdk 28`
 - `abiFilters armeabi-v7a, arm64-v8a`
 
-### Release 签名
 
-项目根目录的 `keystore.properties` 保存本地正式签名配置，文件已被 `.gitignore` 忽略，请勿提交。
-
-```properties
-storeFile=C:/path/to/release.jks
-storePassword=your_store_password
-keyAlias=your_key_alias
-keyPassword=your_key_password
-```
-
-`keystore.properties` 和 keystore 文件需要自行备份；丢失后无法继续用同一签名发布更新。`app/build.gradle` 会在文件存在时自动为 release 构建签名，缺失时生成未签名包。
 
 ## 开源引用
 
