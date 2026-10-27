@@ -213,6 +213,9 @@ public class MainActivity extends Activity {
     private void buildRoot() {
         LinearLayout root = Ui.column(this);
         root.setBackgroundColor(Ui.BG);
+        int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+        root.setPadding(0, 0, 0, navHeight);
 
         topBar = Ui.row(this);
         topBar.setBackgroundColor(Ui.BG);
@@ -401,7 +404,8 @@ public class MainActivity extends Activity {
             content.addView(playlistStrip(recommendedPlaylists));
         }
 
-        scroll.addView(content);
+        scroll.addView(content, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         pull.setContent(scroll);
         homeRefresh = pull;
         return pull;
@@ -938,7 +942,8 @@ public class MainActivity extends Activity {
         screen.addView(divider());
         screen.addView(navRow(R.drawable.ic_settings, "设置", "音质、目录、账号与缓存", this::openSettings));
 
-        scroll.addView(screen);
+        scroll.addView(screen, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return scroll;
     }
 
@@ -1056,7 +1061,8 @@ public class MainActivity extends Activity {
             rows.addView(playlistRow(playlist, () -> openPlaylist(playlist, this::openCreatedPlaylists)));
             rows.addView(divider());
         }
-        scroll.addView(rows);
+        scroll.addView(rows, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         screen.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return screen;
     }
@@ -1493,7 +1499,8 @@ public class MainActivity extends Activity {
             }
         }
 
-        scroll.addView(root);
+        scroll.addView(root, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         screen.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         return screen;
     }
