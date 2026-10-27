@@ -301,8 +301,7 @@ public class MainActivity extends Activity {
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             statusInset = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
             navInset = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom;
-            boolean legacy = navInset == 0
-                    && getResources().getDisplayMetrics().heightPixels <= 800;
+            boolean legacy = navInset == 0 && realDisplayHeight() <= 800;
             if (!navModeReady || legacy != legacyNavMode) {
                 navModeReady = true;
                 switchNavMode(legacy);
@@ -2011,7 +2010,7 @@ public class MainActivity extends Activity {
         bottomTabs.setVisibility(View.VISIBLE);
         if (!legacyNav.isShowing()) {
             legacyNav.showAtLocation(rootView, Gravity.TOP, 0,
-                    getResources().getDisplayMetrics().heightPixels);
+                    realDisplayHeight() - legacyNav.getHeight());
         }
     }
 
@@ -2027,11 +2026,17 @@ public class MainActivity extends Activity {
         }
     }
 
+    private int realDisplayHeight() {
+        android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        return metrics.heightPixels;
+    }
+
     private void applyRootInsets() {
         if (rootView == null) return;
         View parent = (View) rootView.getParent();
         int targetHeight = parent != null ? parent.getHeight() : 0;
-        int displayHeight = getResources().getDisplayMetrics().heightPixels;
+        int displayHeight = realDisplayHeight();
         if (legacyNavMode) {
             int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
             int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
