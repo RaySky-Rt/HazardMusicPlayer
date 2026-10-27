@@ -585,15 +585,32 @@ public class MainActivity extends Activity {
         }
         recommendedLoading = true;
         recommendedError = "";
+        if (client.cookies().isLoggedIn()) {
+            client.personalizedPlaylists(new NetEaseClient.Callback<List<Playlist>>() {
+                @Override
+                public void onSuccess(List<Playlist> data) {
+                    if (data == null || data.isEmpty()) {
+                        loadGenericRecommended();
+                    } else {
+                        applyRecommended(data);
+                    }
+                }
+
+                @Override
+                public void onError(String message, int code) {
+                    loadGenericRecommended();
+                }
+            });
+        } else {
+            loadGenericRecommended();
+        }
+    }
+
+    private void loadGenericRecommended() {
         client.recommendedPlaylists(new NetEaseClient.Callback<List<Playlist>>() {
             @Override
             public void onSuccess(List<Playlist> data) {
-                recommendedLoading = false;
-                recommendedLoaded = true;
-                recommendedPlaylists.clear();
-                if (data != null) recommendedPlaylists.addAll(data);
-                saveCache("recommended", Playlist.listToJson(recommendedPlaylists));
-                homeLoaded();
+                applyRecommended(data);
             }
 
             @Override
@@ -604,6 +621,16 @@ public class MainActivity extends Activity {
                 homeLoaded();
             }
         });
+    }
+
+    private void applyRecommended(List<Playlist> data) {
+        recommendedLoading = false;
+        recommendedLoaded = true;
+        recommendedError = "";
+        recommendedPlaylists.clear();
+        if (data != null) recommendedPlaylists.addAll(data);
+        saveCache("recommended", Playlist.listToJson(recommendedPlaylists));
+        homeLoaded();
     }
 
     private void loadRecommend() {
@@ -1945,6 +1972,8 @@ public class MainActivity extends Activity {
                 playlistsLoaded = false;
                 albumsLoaded = false;
                 albumsError = "";
+                recommendedPlaylists.clear();
+                loadRecommended();
             }
             showTab(tab);
             return;
@@ -1953,6 +1982,7 @@ public class MainActivity extends Activity {
             setStatus("登录成功");
             showTab(1);
             loadAccount();
+            loadRecommended();
         }
     }
 }
