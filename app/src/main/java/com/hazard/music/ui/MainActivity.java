@@ -78,6 +78,10 @@ public class MainActivity extends Activity {
     private int navInset;
     private boolean legacyNavMode;
     private PopupWindow legacyNav;
+    private PopupWindow legacyPlayer;
+    private FrameLayout legacyPlayerContainer;
+    private boolean playerInPopup;
+    private int legacyPlayerHeight;
     private boolean navModeReady;
     private TextView appTitle;
     private boolean subMode;
@@ -209,6 +213,7 @@ public class MainActivity extends Activity {
         downloadManager.setListener(downloadsListener);
         updateMiniPlayer();
         onDownloadsChanged();
+        syncLegacyPlayer();
         if (legacyNavMode) showLegacyNav();
     }
 
@@ -217,6 +222,7 @@ public class MainActivity extends Activity {
         if (playerController != null) playerController.setListener(null);
         if (downloadManager != null) downloadManager.setListener(null);
         hideLegacyNav();
+        hideLegacyPlayer();
         super.onPause();
     }
 
@@ -242,7 +248,8 @@ public class MainActivity extends Activity {
         root.addView(content, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         miniBar = Ui.row(this);
-        miniBar.setBackgroundColor(Ui.SURFACE_2);
+        miniBar.setBackground(Ui.rounded(Ui.SURFACE_2, 16, this));
+        miniBar.setElevation(Ui.dp(this, 4));
         miniBar.setPadding(Ui.dp(this, 12), Ui.dp(this, 8), Ui.dp(this, 6), Ui.dp(this, 8));
         miniBar.setVisibility(View.GONE);
         miniBar.setOnClickListener(v -> startActivity(new Intent(this, PlayerActivity.class)));
@@ -288,7 +295,10 @@ public class MainActivity extends Activity {
                 updateMiniPlayer();
             }
         });
-        root.addView(miniBar, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams miniParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        miniParams.setMargins(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 8));
+        root.addView(miniBar, miniParams);
 
         bottomTabs = Ui.row(this);
         bottomTabs.setBackgroundColor(Ui.SURFACE);
@@ -1934,6 +1944,7 @@ public class MainActivity extends Activity {
             return;
         }
         miniBar.setVisibility(View.VISIBLE);
+        syncLegacyPlayer();
         miniCover.setVisibility(View.VISIBLE);
         ImageLoader.get(this).loadCover(song.picUrl, miniCover, 100);
         miniTitle.setText(song.name);
@@ -2003,6 +2014,7 @@ public class MainActivity extends Activity {
 
     private void showLegacyNav() {
         if (!legacyNavMode || subMode || legacyNav == null || rootView == null) return;
+        if (playerInPopup) syncLegacyPlayer();
         if (rootView.getHeight() <= 0) {
             rootView.postDelayed(this::showLegacyNav, 100);
             return;
@@ -2026,6 +2038,60 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void syncLegacyPlayer() {
+        if (miniBar == null) return;
+        boolean wantPopup = legacyNavMode && subMode && miniBar.getVisibility() == View.VISIBLE;
+        if (wantPopup) {
+            if (!playerInPopup) {
+                int cardHeight = miniBar.getHeight();
+                if (cardHeight <= 0) cardHeight = Ui.dp(this, 64);
+                int side = Ui.dp(this, 12);
+                int bottom = Ui.dp(this, 8);
+                if (miniBar.getParent() != null) {
+                    ((ViewGroup) miniBar.getParent()).removeView(miniBar);
+                }
+                miniBar.setLayoutParams(new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, cardHeight, Gravity.BOTTOM));
+                legacyPlayerContainer = new FrameLayout(this);
+                legacyPlayerContainer.setPadding(side, 0, side, bottom);
+                legacyPlayerContainer.addView(miniBar, new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, cardHeight, Gravity.BOTTOM));
+                legacyPlayerHeight = cardHeight + bottom;
+                legacyPlayer = new PopupWindow(legacyPlayerContainer,
+                        ViewGroup.LayoutParams.MATCH_PARENT, legacyPlayerHeight, false);
+                legacyPlayer.setClippingEnabled(false);
+                legacyPlayer.setFocusable(false);
+                legacyPlayer.setTouchable(true);
+                legacyPlayer.setOutsideTouchable(false);
+                legacyPlayer.setBackgroundDrawable(null);
+                playerInPopup = true;
+            }
+            if (legacyPlayer != null && !legacyPlayer.isShowing() && rootView != null) {
+                legacyPlayer.showAtLocation(rootView, Gravity.TOP, 0,
+                        realDisplayHeight() - legacyPlayerHeight);
+            }
+        } else {
+            hideLegacyPlayer();
+            if (miniBar.getParent() != null && miniBar.getParent() != rootView) {
+                ((ViewGroup) miniBar.getParent()).removeView(miniBar);
+            }
+            if (rootView != null && miniBar.getParent() == null) {
+                LinearLayout.LayoutParams miniParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                miniParams.setMargins(Ui.dp(this, 12), 0, Ui.dp(this, 12), Ui.dp(this, 8));
+                rootView.addView(miniBar, miniParams);
+            }
+            legacyPlayerContainer = null;
+            legacyPlayer = null;
+            playerInPopup = false;
+        }
+        applyRootInsets();
+    }
+
+    private void hideLegacyPlayer() {
+        if (legacyPlayer != null && legacyPlayer.isShowing()) legacyPlayer.dismiss();
+    }
+
     private int realDisplayHeight() {
         android.util.DisplayMetrics metrics = new android.util.DisplayMetrics();
         getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
@@ -2038,22 +2104,29 @@ public class MainActivity extends Activity {
         int targetHeight = parent != null ? parent.getHeight() : 0;
         int displayHeight = realDisplayHeight();
         if (legacyNavMode) {
-            int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
-            int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
-            if (navHeight <= 0) navHeight = Ui.dp(this, 48);
-            targetHeight = displayHeight - navHeight;
+            if (playerInPopup && legacyPlayerHeight > 0) {
+                targetHeight = displayHeight - legacyPlayerHeight;
+            } else {
+                int navId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+                int navHeight = navId > 0 ? getResources().getDimensionPixelSize(navId) : 0;
+                if (navHeight <= 0) navHeight = Ui.dp(this, 48);
+                targetHeight = displayHeight - navHeight;
+            }
         }
         if (targetHeight > 0 && rootView.getLayoutParams() != null) {
             rootView.getLayoutParams().height = targetHeight;
             rootView.setLayoutParams(rootView.getLayoutParams());
         }
         rootView.setPadding(0, statusInset, 0, subMode && !legacyNavMode ? navInset : 0);
-        if (parent != null) parent.setBackgroundColor(legacyNavMode ? Ui.BG : Ui.SURFACE);
+        if (parent != null) {
+            parent.setBackgroundColor(legacyNavMode ? Ui.BG : Ui.SURFACE);
+        }
     }
 
     @Override
     protected void onDestroy() {
         hideLegacyNav();
+        hideLegacyPlayer();
         super.onDestroy();
     }
 
