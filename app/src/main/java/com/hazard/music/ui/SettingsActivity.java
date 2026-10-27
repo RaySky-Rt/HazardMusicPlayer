@@ -25,9 +25,6 @@ import com.hazard.music.store.AppDb;
 import com.hazard.music.util.ImageLoader;
 import com.hazard.music.util.Settings;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 
 public class SettingsActivity extends Activity {
 
@@ -35,7 +32,6 @@ public class SettingsActivity extends Activity {
 
     private MusicApp app;
     private TextView downloadPath;
-    private TextView crashView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -159,17 +155,6 @@ public class SettingsActivity extends Activity {
         gap.topMargin = Ui.dp(this, 8);
         root.addView(clearImages, gap);
 
-        section(root, "崩溃记录");
-        crashView = Ui.text(this, readCrash(), 11, Ui.MUTED);
-        crashView.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 6));
-        root.addView(crashView);
-        Button clearCrash = Ui.button(this, "清除崩溃记录", false);
-        clearCrash.setOnClickListener(v -> {
-            new File(getFilesDir(), "crash_last.txt").delete();
-            crashView.setText("无崩溃记录");
-        });
-        root.addView(clearCrash);
-
         section(root, "账号");
         Button logout = Ui.button(this, "退出登录", false);
         logout.setOnClickListener(v -> new AlertDialog.Builder(this)
@@ -199,9 +184,7 @@ public class SettingsActivity extends Activity {
         }
         TextView about = Ui.text(this,
                 "Hazard Music " + version + "\n"
-                        + "ExoPlayer 2.18.7 + libFLAC\n"
-                        + "下载目录：" + app.downloads().storageText() + "\n"
-                        + "仅供个人使用，接口来自非官方网易云 API。",
+                        + "下载目录：" + app.downloads().storageText(),
                 12, Ui.MUTED);
         about.setPadding(0, Ui.dp(this, 4), 0, 0);
         root.addView(about);
@@ -220,7 +203,7 @@ public class SettingsActivity extends Activity {
             getContentResolver().takePersistableUriPermission(uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         } catch (Exception e) {
-            Ui.toast(this, "无法持久化目录权限：" + e.getMessage());
+            Ui.toast(this, "无法保存目录权限，请重试");
             return;
         }
         Settings.setDownloadTree(this, uri.toString());
@@ -240,27 +223,4 @@ public class SettingsActivity extends Activity {
         root.addView(view, params);
     }
 
-    private String readCrash() {
-        File file = new File(getFilesDir(), "crash_last.txt");
-        if (!file.isFile()) return "无崩溃记录";
-        try (FileInputStream in = new FileInputStream(file)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            int read;
-            int total = 0;
-            while ((read = in.read(buffer)) != -1 && total < 20000) {
-                out.write(buffer, 0, read);
-                total += read;
-            }
-            String text = out.toString("UTF-8");
-            String[] lines = text.split("\n");
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < Math.min(lines.length, 10); i++) {
-                sb.append(lines[i]).append('\n');
-            }
-            return sb.toString();
-        } catch (Exception e) {
-            return "读取失败：" + e;
-        }
-    }
 }

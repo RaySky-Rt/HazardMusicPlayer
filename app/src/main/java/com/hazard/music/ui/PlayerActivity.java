@@ -282,7 +282,7 @@ public class PlayerActivity extends Activity {
             qualityView.setText("加载中…");
             qualityView.setTextColor(Ui.MUTED);
         } else if (!controller.error().isEmpty()) {
-            qualityView.setText("播放失败：" + controller.error());
+            qualityView.setText("播放失败");
             qualityView.setTextColor(Ui.ACCENT);
         } else {
             qualityView.setText(controller.quality() + (controller.isTrial() ? " · 试听" : ""));
@@ -357,14 +357,14 @@ public class PlayerActivity extends Activity {
 
                     @Override
                     public void onError(String message, int code) {
-                        revertLike(song, like, "操作失败：" + message);
+                        revertLike(song, like, "操作失败，请稍后重试");
                     }
                 });
             }
 
             @Override
             public void onError(String message, int code) {
-                revertLike(song, like, "账号验证失败：" + message);
+                revertLike(song, like, "账号验证失败");
             }
         });
     }
@@ -745,14 +745,14 @@ public class PlayerActivity extends Activity {
 
                     @Override
                     public void onError(String message, int code) {
-                        if (dialog.isShowing()) status.setText("歌单加载失败：" + message);
+                        if (dialog.isShowing()) status.setText("加载失败，请稍后重试");
                     }
                 });
             }
 
             @Override
             public void onError(String message, int code) {
-                if (dialog.isShowing()) status.setText("账号验证失败：" + message);
+                if (dialog.isShowing()) status.setText("账号验证失败");
             }
         });
     }
@@ -786,7 +786,7 @@ public class PlayerActivity extends Activity {
 
                 @Override
                 public void onError(String message, int code) {
-                    if (dialog.isShowing()) status.setText("收藏失败：" + message);
+                    if (dialog.isShowing()) status.setText("收藏失败，请稍后重试");
                 }
             });
         });

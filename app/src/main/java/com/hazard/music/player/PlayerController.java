@@ -607,7 +607,7 @@ public final class PlayerController implements Player.Listener {
         } else if (loading) {
             text = "加载中…";
         } else if (!error.isEmpty()) {
-            text = "播放失败：" + error;
+            text = "播放失败";
         } else {
             text = current.artist + (quality.isEmpty() ? "" : " · " + quality) + (trial ? " · 试听" : "");
         }

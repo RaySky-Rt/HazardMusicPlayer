@@ -104,7 +104,7 @@ public class LoginActivity extends Activity {
             public void onSuccess(JSONObject json) {
                 String unikey = json.optString("unikey", "");
                 if (unikey.isEmpty()) {
-                    setStatus("二维码获取失败：" + json.optString("message", "未知错误"));
+                    setStatus("二维码获取失败，请重试");
                     return;
                 }
                 key = unikey;
@@ -116,13 +116,13 @@ public class LoginActivity extends Activity {
                     polling = true;
                     handler.postDelayed(pollTask, 1200);
                 } catch (Exception e) {
-                    setStatus("生成二维码失败：" + e.getMessage());
+                    setStatus("生成二维码失败，请重试");
                 }
             }
 
             @Override
             public void onError(String message, int code) {
-                setStatus("二维码获取失败：" + message);
+                setStatus("二维码获取失败，请重试");
             }
         });
     }
@@ -150,16 +150,16 @@ public class LoginActivity extends Activity {
                     handler.postDelayed(LoginActivity.this::begin, 800);
                 } else if (code == 8821 || code == -462 || code == 8810) {
                     polling = false;
-                    setStatus("网易要求安全验证（" + code + "），请改用 Cookie 登录");
+                    setStatus("需要安全验证，请改用 Cookie 登录");
                 } else {
-                    setStatus("登录状态 " + code);
+                    setStatus("等待登录确认…");
                     schedule();
                 }
             }
 
             @Override
             public void onError(String message, int code) {
-                setStatus("网络错误：" + message);
+                setStatus("网络异常，请重试");
                 schedule();
             }
         });
@@ -209,7 +209,7 @@ public class LoginActivity extends Activity {
                         @Override
                         public void onError(String message, int code) {
                             client.logout();
-                            setStatus("Cookie 验证失败：" + message);
+                            setStatus("Cookie 无效或已过期");
                         }
                     });
                 })
