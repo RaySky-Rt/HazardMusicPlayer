@@ -9,6 +9,8 @@ public final class Settings {
     private static final String KEY_QUALITY = "quality";
     private static final String KEY_TREE = "download_tree";
     private static final String KEY_PLAY_MODE = "play_mode";
+    private static final String KEY_TIMER_LAST = "timer_last_ms";
+    private static final String KEY_TIMER_WAIT_END = "timer_wait_end";
 
     private Settings() {
     }
@@ -67,6 +69,26 @@ public final class Settings {
     public static void setPlayMode(Context context, String mode) {
         context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit().putString(KEY_PLAY_MODE, mode).apply();
+    }
+
+    public static long timerLastMillis(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getLong(KEY_TIMER_LAST, 0L);
+    }
+
+    public static void setTimerLastMillis(Context context, long millis) {
+        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putLong(KEY_TIMER_LAST, Math.max(0L, millis)).apply();
+    }
+
+    public static boolean timerWaitForEnd(Context context) {
+        return context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_TIMER_WAIT_END, false);
+    }
+
+    public static void setTimerWaitForEnd(Context context, boolean wait) {
+        context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_TIMER_WAIT_END, wait).apply();
     }
 
     public static String label(String level) {

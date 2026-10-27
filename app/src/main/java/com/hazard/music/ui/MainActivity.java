@@ -622,7 +622,6 @@ public class MainActivity extends Activity {
                 if (data != null) recommendSongs.addAll(data);
                 saveCache("daily", Song.listToJson(recommendSongs));
                 homeLoaded();
-                setStatus("每日推荐 " + recommendSongs.size() + " 首");
             }
 
             @Override
@@ -1008,7 +1007,8 @@ public class MainActivity extends Activity {
         if (historySongs.isEmpty()) return;
         int index = indexById(historySongs, song.id);
         if (index < 0) return;
-        if (playerController == null) playerController = app.playerController();
+        bindPlayerController();
+        if (playerController == null) return;
         playerController.playQueue(historySongs, index, "播放历史");
         updateMiniPlayer();
         setStatus("播放：" + song.name);
@@ -1168,7 +1168,8 @@ public class MainActivity extends Activity {
             Ui.toast(this, "文件不存在，可能已被删除");
             return;
         }
-        if (playerController == null) playerController = app.playerController();
+        bindPlayerController();
+        if (playerController == null) return;
         playerController.playQueue(queue, index, "本地音乐");
         updateMiniPlayer();
         setStatus("本地播放：" + item.song.name);
@@ -1311,7 +1312,6 @@ public class MainActivity extends Activity {
                     clearCache();
                 }
                 refreshMineOrCollections();
-                setStatus(account == null ? "未登录" : "已登录：" + account.nickname);
             }
 
             @Override
@@ -1863,7 +1863,8 @@ public class MainActivity extends Activity {
         if (queue == null || queue.isEmpty()) return;
         int position = indexById(queue, song.id);
         if (position < 0) return;
-        if (playerController == null) playerController = app.playerController();
+        bindPlayerController();
+        if (playerController == null) return;
         String queueTitle = subTitle == null || subTitle.trim().isEmpty() ? "每日推荐" : subTitle;
         playerController.playQueue(queue, position, queueTitle);
         updateMiniPlayer();
@@ -1894,7 +1895,7 @@ public class MainActivity extends Activity {
         ImageLoader.get(this).loadCover(song.picUrl, miniCover, 100);
         miniTitle.setText(song.name);
         StringBuilder sub = new StringBuilder(song.artist);
-        if (playerController.isLoading()) {
+        if (playerController.isLoading() && !playerController.isPlaying()) {
             sub.append(" · 加载中");
         } else if (!playerController.error().isEmpty()) {
             sub.append(" · 播放失败");
@@ -1905,6 +1906,11 @@ public class MainActivity extends Activity {
         miniSub.setText(sub.toString());
         miniToggle.setImageResource(playerController.isPlaying()
                 ? R.drawable.ic_pause : R.drawable.ic_play);
+    }
+
+    private void bindPlayerController() {
+        if (playerController == null) playerController = app.playerController();
+        if (playerController != null) playerController.setListener(playbackListener);
     }
 
     private void setStatus(String text) {

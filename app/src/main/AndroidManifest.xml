@@ -11,6 +11,7 @@
     <application
         android:name=".MusicApp"
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Hazard Music"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="true">

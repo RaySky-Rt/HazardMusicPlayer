@@ -201,6 +201,16 @@ public final class NetEaseClient {
                 }, callback);
     }
 
+    public void addToPlaylist(long playlistId, long trackId, Callback<Boolean> callback) {
+        request("/api/playlist/manipulate/tracks",
+                obj("op", "add", "pid", playlistId,
+                        "trackIds", "[" + trackId + "]", "imme", true),
+                false, json -> {
+                    ensureOk(json);
+                    return Boolean.TRUE;
+                }, callback);
+    }
+
     public static final class PlaylistPage {
         public final List<Song> songs;
         public final int offset;

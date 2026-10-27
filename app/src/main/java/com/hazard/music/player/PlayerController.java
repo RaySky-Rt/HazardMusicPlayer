@@ -69,6 +69,11 @@ public final class PlayerController implements Player.Listener {
     private final Random random = new Random();
     private PlayMode mode;
     private String queueTitle = "";
+    private long timerEndAt;
+    private boolean timerRunning;
+    private boolean pauseAtTrackEnd;
+    private boolean timerRepeatSuspended;
+    private boolean timerWaitForEnd;
 
     private int index = -1;
     private Song current;
@@ -87,6 +92,7 @@ public final class PlayerController implements Player.Listener {
         this.client = app.client;
         this.main = app.main;
         this.mode = parseMode(Settings.playMode(this.context));
+        this.timerWaitForEnd = Settings.timerWaitForEnd(this.context);
 
         DefaultRenderersFactory factory = new DefaultRenderersFactory(this.context)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
@@ -158,6 +164,85 @@ public final class PlayerController implements Player.Listener {
         applyRepeatMode();
         PlaybackService.start(context);
         loadCurrent(0);
+    }
+
+    public void startTimer(long durationMs) {
+        if (durationMs <= 0) return;
+        pauseAtTrackEnd = false;
+        if (timerRepeatSuspended) restoreRepeatAfterTimer();
+        timerRunning = true;
+        timerEndAt = System.currentTimeMillis() + durationMs;
+        Settings.setTimerLastMillis(context, durationMs);
+        main.removeCallbacks(timerTick);
+        main.post(timerTick);
+        notifyChanged();
+    }
+
+    public void cancelTimer() {
+        timerRunning = false;
+        timerEndAt = 0;
+        pauseAtTrackEnd = false;
+        main.removeCallbacks(timerTick);
+        restoreRepeatAfterTimer();
+        notifyChanged();
+    }
+
+    public boolean timerRunning() {
+        return timerRunning;
+    }
+
+    public long timerRemainingMs() {
+        if (!timerRunning) return 0L;
+        return Math.max(0L, timerEndAt - System.currentTimeMillis());
+    }
+
+    public boolean timerWaitingForTrackEnd() {
+        return pauseAtTrackEnd;
+    }
+
+    public boolean timerWaitForEnd() {
+        return timerWaitForEnd;
+    }
+
+    public void setTimerWaitForEnd(boolean wait) {
+        timerWaitForEnd = wait;
+        Settings.setTimerWaitForEnd(context, wait);
+        if (!wait && pauseAtTrackEnd) {
+            pauseAtTrackEnd = false;
+            restoreRepeatAfterTimer();
+            pause();
+        }
+        notifyChanged();
+    }
+
+    private final Runnable timerTick = this::checkTimer;
+
+    private void checkTimer() {
+        if (!timerRunning) return;
+        long remaining = timerEndAt - System.currentTimeMillis();
+        if (remaining > 0) {
+            main.postDelayed(timerTick, 250);
+            return;
+        }
+        timerRunning = false;
+        timerEndAt = 0;
+        if (timerWaitForEnd && current != null && player.isPlaying()
+                && player.getPlaybackState() != Player.STATE_ENDED) {
+            pauseAtTrackEnd = true;
+            if (mode == PlayMode.REPEAT_ONE) {
+                player.setRepeatMode(Player.REPEAT_MODE_OFF);
+                timerRepeatSuspended = true;
+            }
+        } else {
+            pause();
+        }
+        notifyChanged();
+    }
+
+    private void restoreRepeatAfterTimer() {
+        if (!timerRepeatSuspended) return;
+        timerRepeatSuspended = false;
+        applyRepeatMode();
     }
 
     public String queueTitle() {
@@ -346,7 +431,7 @@ public final class PlayerController implements Player.Listener {
     }
 
     private void applyRepeatMode() {
-        player.setRepeatMode(mode == PlayMode.REPEAT_ONE
+        player.setRepeatMode(mode == PlayMode.REPEAT_ONE && !pauseAtTrackEnd
                 ? Player.REPEAT_MODE_ONE : Player.REPEAT_MODE_OFF);
     }
 
@@ -364,6 +449,11 @@ public final class PlayerController implements Player.Listener {
     }
 
     public void stop() {
+        timerRunning = false;
+        timerEndAt = 0;
+        pauseAtTrackEnd = false;
+        main.removeCallbacks(timerTick);
+        restoreRepeatAfterTimer();
         loadToken++;
         player.stop();
         player.clearMediaItems();
@@ -561,6 +651,17 @@ public final class PlayerController implements Player.Listener {
     public void onPlaybackStateChanged(int state) {
         Log.i(TAG, "state=" + state + " pos=" + player.getCurrentPosition());
         if (state == Player.STATE_ENDED && !queue.isEmpty()) {
+            if (pauseAtTrackEnd) {
+                pauseAtTrackEnd = false;
+                timerRunning = false;
+                timerEndAt = 0;
+                restoreRepeatAfterTimer();
+                player.pause();
+                notifyChanged();
+                updateSession();
+                updateNotification();
+                return;
+            }
             if (mode == PlayMode.REPEAT_ONE) {
                 player.seekTo(0);
                 player.play();

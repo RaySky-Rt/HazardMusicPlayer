@@ -16,6 +16,9 @@ import android.view.WindowManager;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
+import android.widget.NumberPicker;
+import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -26,6 +29,7 @@ import com.hazard.music.MusicApp;
 import com.hazard.music.R;
 import com.hazard.music.api.NetEaseClient;
 import com.hazard.music.model.Account;
+import com.hazard.music.model.Playlist;
 import com.hazard.music.model.Song;
 import com.hazard.music.player.PlayerController;
 import com.hazard.music.util.ImageLoader;
@@ -98,6 +102,13 @@ public class PlayerActivity extends Activity {
         top.addView(playlistView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.CENTER));
+
+        ImageView more = Ui.icon(this, R.drawable.ic_more, 20, Ui.TEXT);
+        more.setPadding(Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10), Ui.dp(this, 10));
+        more.setContentDescription("更多功能");
+        more.setOnClickListener(v -> showMoreSheet());
+        top.addView(more, new FrameLayout.LayoutParams(
+                Ui.dp(this, 40), Ui.dp(this, 40), Gravity.END | Gravity.CENTER_VERTICAL));
         root.addView(top, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 40)));
 
         cover = new ImageView(this);
@@ -135,12 +146,6 @@ public class PlayerActivity extends Activity {
 
         qualityView = Ui.text(this, "", 12, Ui.ACCENT);
         qualityView.setGravity(Gravity.CENTER);
-        qualityView.setPadding(Ui.dp(this, 9), Ui.dp(this, 3), Ui.dp(this, 9), Ui.dp(this, 3));
-        qualityView.setBackground(Ui.rounded(Ui.SURFACE_2, 12, this));
-        qualityView.setCompoundDrawablePadding(Ui.dp(this, 4));
-        qualityView.setCompoundDrawablesWithIntrinsicBounds(0, 0, R.drawable.ic_chevron, 0);
-        qualityView.setContentDescription("当前音质，点击切换");
-        qualityView.setOnClickListener(v -> showQualityDialog());
         LinearLayout.LayoutParams qualityParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         qualityParams.gravity = Gravity.CENTER_HORIZONTAL;
@@ -395,6 +400,397 @@ public class PlayerActivity extends Activity {
             } catch (Exception ignored) {
             }
         });
+    }
+
+
+    private LinearLayout newSheetContent() {
+        LinearLayout sheet = Ui.column(this);
+        sheet.setBackground(Ui.rounded(Ui.SURFACE, 18, this));
+        sheet.setPadding(Ui.dp(this, 16), Ui.dp(this, 6), Ui.dp(this, 16),
+                Ui.dp(this, 10) + navigationBarHeight());
+        View handle = new View(this);
+        handle.setBackgroundColor(Ui.SURFACE_2);
+        LinearLayout.LayoutParams handleParams = new LinearLayout.LayoutParams(
+                Ui.dp(this, 36), Ui.dp(this, 4));
+        handleParams.gravity = Gravity.CENTER_HORIZONTAL;
+        handleParams.topMargin = Ui.dp(this, 4);
+        sheet.addView(handle, handleParams);
+        return sheet;
+    }
+
+    private int navigationBarHeight() {
+        int id = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        return id > 0 ? getResources().getDimensionPixelSize(id) : 0;
+    }
+
+    private TextView sheetTitle(LinearLayout sheet, String text) {
+        TextView title = Ui.text(this, text, 16, Ui.TEXT);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        sheet.addView(title, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        return title;
+    }
+
+    private Dialog newSheetDialog() {
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCanceledOnTouchOutside(true);
+        return dialog;
+    }
+
+    private void showSheet(Dialog dialog, LinearLayout sheet, float heightFraction) {
+        dialog.setContentView(sheet);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+            window.setDimAmount(0.45f);
+            window.setGravity(Gravity.BOTTOM);
+            window.setWindowAnimations(R.style.BottomSheetAnimation);
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT;
+            params.height = heightFraction > 0
+                    ? (int) (getResources().getDisplayMetrics().heightPixels * heightFraction)
+                    : ViewGroup.LayoutParams.WRAP_CONTENT;
+            params.gravity = Gravity.BOTTOM;
+            window.setAttributes(params);
+        }
+        dialog.show();
+    }
+
+    private LinearLayout menuRow(String title, String subtitle, Runnable action) {
+        LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        LinearLayout texts = Ui.column(this);
+        TextView heading = Ui.text(this, title, 15, Ui.TEXT);
+        TextView sub = Ui.text(this, subtitle, 11, Ui.MUTED);
+        sub.setPadding(0, Ui.dp(this, 2), 0, 0);
+        texts.addView(heading);
+        texts.addView(sub);
+        row.addView(texts, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        ImageView chevron = Ui.icon(this, R.drawable.ic_chevron, 18, Ui.MUTED);
+        row.addView(chevron, Ui.lp(Ui.dp(this, 24), Ui.dp(this, 24)));
+        row.setOnClickListener(v -> action.run());
+        return row;
+    }
+
+    private void showMoreSheet() {
+        final Dialog dialog = newSheetDialog();
+        LinearLayout sheet = newSheetContent();
+        sheetTitle(sheet, "更多功能");
+
+        final TextView timerSubtitle = Ui.text(this, timerSummary(), 11, Ui.MUTED);
+        LinearLayout timerRow = menuRow("定时停止播放", "", () -> {
+            dialog.dismiss();
+            showTimerSheet();
+        });
+        // Replace the empty subtitle inside the row with the live one.
+        LinearLayout timerTexts = (LinearLayout) timerRow.getChildAt(0);
+        timerTexts.removeViewAt(1);
+        timerTexts.addView(timerSubtitle);
+        sheet.addView(timerRow);
+        sheet.addView(dividerLine());
+
+        sheet.addView(menuRow("收藏到歌单", "选择创建的歌单", () -> {
+            dialog.dismiss();
+            showPlaylistSheet();
+        }));
+        sheet.addView(dividerLine());
+
+        String currentQuality = controller.quality();
+        if (currentQuality.isEmpty()) currentQuality = Settings.label(Settings.quality(this));
+        sheet.addView(menuRow("播放音质", currentQuality, () -> {
+            dialog.dismiss();
+            showQualityDialog();
+        }));
+
+        final Runnable[] ticker = new Runnable[1];
+        ticker[0] = () -> {
+            if (!dialog.isShowing()) return;
+            timerSubtitle.setText(timerSummary());
+            handler.postDelayed(ticker[0], 1000);
+        };
+        dialog.setOnDismissListener(d -> handler.removeCallbacks(ticker[0]));
+        showSheet(dialog, sheet, 0);
+
+        handler.post(ticker[0]);
+    }
+
+    private View dividerLine() {
+        View view = new View(this);
+        view.setBackgroundColor(0xFF2A2A2A);
+        view.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, Ui.dp(this, 1))));
+        return view;
+    }
+
+    private String timerSummary() {
+        if (controller.timerWaitingForTrackEnd()) return "等待本曲结束后暂停";
+        if (controller.timerRunning()) return "剩余 " + countdownText(controller.timerRemainingMs());
+        long last = Settings.timerLastMillis(this);
+        return last > 0 ? "上次 " + durationLabel(last) : "定时已关闭";
+    }
+
+    private String durationLabel(long millis) {
+        long minutes = Math.max(0, millis) / 60000L;
+        if (minutes < 60) return minutes + " 分钟";
+        long hours = minutes / 60;
+        long rest = minutes % 60;
+        return rest == 0 ? hours + " 小时" : hours + " 小时 " + rest + " 分钟";
+    }
+
+    private String countdownText(long millis) {
+        long seconds = (Math.max(0, millis) + 999L) / 1000L;
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        if (hours > 0) return String.format(Locale.US, "%d:%02d:%02d", hours, minutes, secs);
+        return String.format(Locale.US, "%02d:%02d", minutes, secs);
+    }
+
+    private void showTimerSheet() {
+        final Dialog dialog = newSheetDialog();
+        LinearLayout sheet = newSheetContent();
+        sheetTitle(sheet, "定时停止播放");
+
+        final TextView status = Ui.text(this, timerSummary(), 12, Ui.MUTED);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(0, 0, 0, Ui.dp(this, 8));
+        sheet.addView(status, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        final int[] presets = {10, 20, 30, 45, 60, 90};
+        for (int rowIndex = 0; rowIndex < 2; rowIndex++) {
+            LinearLayout row = Ui.row(this);
+            for (int col = 0; col < 3; col++) {
+                final int minutes = presets[rowIndex * 3 + col];
+                TextView button = Ui.text(this, minutes + " 分钟", 13, Ui.TEXT);
+                button.setGravity(Gravity.CENTER);
+                button.setBackground(Ui.rounded(Ui.SURFACE_2, 12, this));
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                        0, Ui.dp(this, 42), 1f);
+                if (col > 0) params.leftMargin = Ui.dp(this, 8);
+                button.setLayoutParams(params);
+                button.setOnClickListener(v -> {
+                    controller.startTimer(minutes * 60_000L);
+                    dialog.dismiss();
+                    Ui.toast(this, "定时已开启：" + minutes + " 分钟");
+                });
+                row.addView(button);
+            }
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (rowIndex > 0) rowParams.topMargin = Ui.dp(this, 8);
+            sheet.addView(row, rowParams);
+        }
+
+        Switch enable = new Switch(this);
+        enable.setText("启用定时停止");
+        enable.setTextColor(Ui.TEXT);
+        enable.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        enable.setChecked(controller.timerRunning());
+        enable.setOnCheckedChangeListener((button, checked) -> {
+            if (checked) {
+                long last = Settings.timerLastMillis(this);
+                if (last <= 0) {
+                    button.setChecked(false);
+                    Ui.toast(this, "请先选择定时时间");
+                    return;
+                }
+                controller.startTimer(last);
+            } else {
+                controller.cancelTimer();
+            }
+            status.setText(timerSummary());
+        });
+        sheet.addView(enable);
+
+        Switch waitEnd = new Switch(this);
+        waitEnd.setText("等待当前歌曲结束后暂停");
+        waitEnd.setTextColor(Ui.TEXT);
+        waitEnd.setChecked(controller.timerWaitForEnd());
+        waitEnd.setOnCheckedChangeListener((button, checked) ->
+                controller.setTimerWaitForEnd(checked));
+        sheet.addView(waitEnd);
+
+        TextView custom = Ui.text(this, "自定义时间", 14, Ui.ACCENT);
+        custom.setGravity(Gravity.CENTER);
+        custom.setBackground(Ui.rounded(Ui.SURFACE_2, 12, this));
+        custom.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 12));
+        custom.setOnClickListener(v -> {
+            dialog.dismiss();
+            showCustomTimeSheet();
+        });
+        LinearLayout.LayoutParams customParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
+        customParams.topMargin = Ui.dp(this, 8);
+        sheet.addView(custom, customParams);
+
+        final Runnable[] ticker = new Runnable[1];
+        ticker[0] = () -> {
+            if (!dialog.isShowing()) return;
+            status.setText(timerSummary());
+            handler.postDelayed(ticker[0], 1000);
+        };
+        dialog.setOnDismissListener(d -> handler.removeCallbacks(ticker[0]));
+        showSheet(dialog, sheet, 0.78f);
+        handler.post(ticker[0]);
+    }
+
+    private void showCustomTimeSheet() {
+        final Dialog dialog = newSheetDialog();
+        LinearLayout sheet = newSheetContent();
+        sheetTitle(sheet, "自定义停止时间");
+
+        long last = Settings.timerLastMillis(this);
+        int lastHour = (int) (last / 3_600_000L);
+        int lastMinute = (int) ((last / 60_000L) % 60L);
+
+        LinearLayout columns = Ui.row(this);
+        columns.setGravity(Gravity.CENTER);
+        NumberPicker hourPicker = new NumberPicker(this);
+        hourPicker.setMinValue(0);
+        hourPicker.setMaxValue(23);
+        hourPicker.setValue(Math.min(23, Math.max(0, lastHour)));
+        hourPicker.setWrapSelectorWheel(true);
+        hourPicker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
+        hourPicker.setFormatter(value -> String.format(Locale.US, "%02d", value));
+        columns.addView(pickerColumn("小时", hourPicker), Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        NumberPicker minutePicker = new NumberPicker(this);
+        minutePicker.setMinValue(0);
+        minutePicker.setMaxValue(59);
+        minutePicker.setValue(Math.min(59, Math.max(0, lastMinute)));
+        minutePicker.setWrapSelectorWheel(true);
+        minutePicker.setDescendantFocusability(NumberPicker.FOCUS_BLOCK_DESCENDANTS);
+        minutePicker.setFormatter(value -> String.format(Locale.US, "%02d", value));
+        columns.addView(pickerColumn("分钟", minutePicker), Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        sheet.addView(columns);
+
+        TextView confirm = Ui.text(this, "开始倒计时", 14, Color.WHITE);
+        confirm.setGravity(Gravity.CENTER);
+        confirm.setBackground(Ui.rounded(Ui.ACCENT, 12, this));
+        confirm.setOnClickListener(v -> {
+            int totalMinutes = hourPicker.getValue() * 60 + minutePicker.getValue();
+            if (totalMinutes <= 0) {
+                Ui.toast(this, "时间必须大于 0 分钟");
+                return;
+            }
+            controller.startTimer(totalMinutes * 60_000L);
+            dialog.dismiss();
+            Ui.toast(this, "定时已开启：" + durationLabel(totalMinutes * 60_000L));
+        });
+        LinearLayout.LayoutParams confirmParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 44));
+        confirmParams.topMargin = Ui.dp(this, 10);
+        sheet.addView(confirm, confirmParams);
+
+        showSheet(dialog, sheet, 0.68f);
+    }
+
+    private LinearLayout pickerColumn(String label, NumberPicker picker) {
+        LinearLayout column = Ui.column(this);
+        column.setGravity(Gravity.CENTER_HORIZONTAL);
+        TextView title = Ui.text(this, label, 12, Ui.MUTED);
+        column.addView(title);
+        column.addView(picker, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 150)));
+        return column;
+    }
+
+    private void showPlaylistSheet() {
+        final Song song = controller.current();
+        if (song == null) {
+            Ui.toast(this, "当前没有播放歌曲");
+            return;
+        }
+        final Dialog dialog = newSheetDialog();
+        final LinearLayout sheet = newSheetContent();
+        sheetTitle(sheet, "收藏到歌单");
+
+        final TextView status = Ui.text(this, "加载中…", 12, Ui.MUTED);
+        status.setPadding(0, Ui.dp(this, 2), 0, Ui.dp(this, 8));
+        sheet.addView(status);
+        final LinearLayout list = Ui.column(this);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        sheet.addView(scroll, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        showSheet(dialog, sheet, 0.62f);
+
+        app.client.account(new NetEaseClient.Callback<Account>() {
+            @Override
+            public void onSuccess(Account account) {
+                if (!dialog.isShowing()) return;
+                if (account == null) {
+                    status.setText("请先登录");
+                    return;
+                }
+                app.client.playlists(account.userId, new NetEaseClient.Callback<List<Playlist>>() {
+                    @Override
+                    public void onSuccess(List<Playlist> data) {
+                        if (!dialog.isShowing()) return;
+                        list.removeAllViews();
+                        int count = 0;
+                        if (data != null) {
+                            for (Playlist playlist : data) {
+                                if (!playlist.isCreatedBy(account.userId) || playlist.specialType != 0) continue;
+                                list.addView(playlistRow(playlist, song, status, dialog));
+                                count++;
+                            }
+                        }
+                        status.setText(count == 0 ? "没有创建的歌单" : "选择要收藏到的歌单");
+                    }
+
+                    @Override
+                    public void onError(String message, int code) {
+                        if (dialog.isShowing()) status.setText("歌单加载失败：" + message);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message, int code) {
+                if (dialog.isShowing()) status.setText("账号验证失败：" + message);
+            }
+        });
+    }
+
+    private View playlistRow(Playlist playlist, Song song, TextView status, Dialog dialog) {
+        LinearLayout row = Ui.row(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 8));
+        ImageView cover = new ImageView(this);
+        cover.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        cover.setBackgroundColor(Ui.SURFACE_2);
+        ImageLoader.get(this).loadCover(playlist.coverUrl, cover, 96);
+        row.addView(cover, Ui.lp(Ui.dp(this, 40), Ui.dp(this, 40)));
+        LinearLayout texts = Ui.column(this);
+        TextView name = Ui.text(this, playlist.name, 14, Ui.TEXT);
+        TextView count = Ui.text(this, playlist.trackCount + " 首", 11, Ui.MUTED);
+        texts.addView(name);
+        texts.addView(count);
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        textParams.leftMargin = Ui.dp(this, 10);
+        row.addView(texts, textParams);
+        row.setOnClickListener(v -> {
+            status.setText("收藏中…");
+            app.client.addToPlaylist(playlist.id, song.id, new NetEaseClient.Callback<Boolean>() {
+                @Override
+                public void onSuccess(Boolean data) {
+                    if (dialog.isShowing()) dialog.dismiss();
+                    Ui.toast(PlayerActivity.this, "已收藏到 " + playlist.name);
+                }
+
+                @Override
+                public void onError(String message, int code) {
+                    if (dialog.isShowing()) status.setText("收藏失败：" + message);
+                }
+            });
+        });
+        return row;
     }
 
     private void showQueue() {
