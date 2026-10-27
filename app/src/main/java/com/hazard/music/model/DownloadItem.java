@@ -45,7 +45,7 @@ public final class DownloadItem {
             case DONE:
                 return "已完成" + (quality.isEmpty() ? "" : " · " + quality);
             case ERROR:
-                return "失败" + (error.isEmpty() ? "" : " · " + error);
+                return "下载失败";
             default:
                 return "";
         }

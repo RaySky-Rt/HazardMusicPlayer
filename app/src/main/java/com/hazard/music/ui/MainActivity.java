@@ -66,7 +66,6 @@ public class MainActivity extends Activity {
     private ImageView tabMineIcon;
     private TextView tabHomeLabel;
     private TextView tabMineLabel;
-    private TextView status;
     private LinearLayout topBar;
     private LinearLayout bottomTabs;
     private TextView appTitle;
@@ -219,11 +218,6 @@ public class MainActivity extends Activity {
         appTitle = Ui.text(this, "首页", 19, Ui.TEXT);
         appTitle.setTypeface(Typeface.DEFAULT_BOLD);
         titleBox.addView(appTitle);
-        status = Ui.text(this, "", 11, Ui.MUTED);
-        status.setSingleLine(true);
-        status.setEllipsize(TextUtils.TruncateAt.END);
-        status.setVisibility(View.GONE);
-        titleBox.addView(status);
         topBar.addView(titleBox, Ui.lp(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         root.addView(topBar);
@@ -345,7 +339,6 @@ public class MainActivity extends Activity {
         if (subMode) return;
         String[] titles = {"首页", "我的"};
         appTitle.setText(titles[Math.max(0, Math.min(1, tab))]);
-        if (tab == 1) status.setVisibility(View.GONE);
     }
 
     private void showTab(int index) {
@@ -365,7 +358,6 @@ public class MainActivity extends Activity {
         historyExpanded = false;
         homeRefresh = null;
         content.removeAllViews();
-        setStatus("");
         updateTabs();
         updateChrome();
         if (index == 0) {
@@ -585,25 +577,52 @@ public class MainActivity extends Activity {
         }
         recommendedLoading = true;
         recommendedError = "";
+        if (client.cookies().isLoggedIn()) {
+            client.personalizedPlaylists(new NetEaseClient.Callback<List<Playlist>>() {
+                @Override
+                public void onSuccess(List<Playlist> data) {
+                    if (data == null || data.isEmpty()) {
+                        loadGenericRecommended();
+                    } else {
+                        applyRecommended(data);
+                    }
+                }
+
+                @Override
+                public void onError(String message, int code) {
+                    loadGenericRecommended();
+                }
+            });
+        } else {
+            loadGenericRecommended();
+        }
+    }
+
+    private void loadGenericRecommended() {
         client.recommendedPlaylists(new NetEaseClient.Callback<List<Playlist>>() {
             @Override
             public void onSuccess(List<Playlist> data) {
-                recommendedLoading = false;
-                recommendedLoaded = true;
-                recommendedPlaylists.clear();
-                if (data != null) recommendedPlaylists.addAll(data);
-                saveCache("recommended", Playlist.listToJson(recommendedPlaylists));
-                homeLoaded();
+                applyRecommended(data);
             }
 
             @Override
             public void onError(String message, int code) {
                 recommendedLoading = false;
                 recommendedLoaded = true;
-                recommendedError = "歌单推荐失败：" + message;
+                recommendedError = "歌单推荐失败";
                 homeLoaded();
             }
         });
+    }
+
+    private void applyRecommended(List<Playlist> data) {
+        recommendedLoading = false;
+        recommendedLoaded = true;
+        recommendedError = "";
+        recommendedPlaylists.clear();
+        if (data != null) recommendedPlaylists.addAll(data);
+        saveCache("recommended", Playlist.listToJson(recommendedPlaylists));
+        homeLoaded();
     }
 
     private void loadRecommend() {
@@ -628,9 +647,8 @@ public class MainActivity extends Activity {
             public void onError(String message, int code) {
                 recommendLoading = false;
                 recommendLoaded = true;
-                recommendError = message + " (" + code + ")";
+                recommendError = "每日推荐加载失败";
                 homeLoaded();
-                setStatus("每日推荐失败：" + message);
             }
         });
     }
@@ -745,15 +763,13 @@ public class MainActivity extends Activity {
                 searchSongs.clear();
                 if (data != null) searchSongs.addAll(data);
                 renderSearch();
-                setStatus("搜索到 " + searchSongs.size() + " 首");
             }
 
             @Override
             public void onError(String message, int code) {
                 searchLoading = false;
-                searchError = message + " (" + code + ")";
+                searchError = "搜索失败，请稍后重试";
                 renderSearch();
-                setStatus("搜索失败：" + message);
             }
         });
     }
@@ -1011,7 +1027,6 @@ public class MainActivity extends Activity {
         if (playerController == null) return;
         playerController.playQueue(historySongs, index, "播放历史");
         updateMiniPlayer();
-        setStatus("播放：" + song.name);
     }
 
     private void openCreatedPlaylists() {
@@ -1158,7 +1173,6 @@ public class MainActivity extends Activity {
         }
         downloadManager.enqueue(Collections.singletonList(song));
         Ui.toast(this, "已加入下载：" + song.name);
-        setStatus("已加入下载：" + song.name);
     }
 
     private void playDownloaded(DownloadItem item) {
@@ -1172,7 +1186,6 @@ public class MainActivity extends Activity {
         if (playerController == null) return;
         playerController.playQueue(queue, index, "本地音乐");
         updateMiniPlayer();
-        setStatus("本地播放：" + item.song.name);
     }
 
     private void handleDownloadAction(DownloadItem item) {
@@ -1318,9 +1331,8 @@ public class MainActivity extends Activity {
             public void onError(String message, int code) {
                 accountLoading = false;
                 accountChecked = true;
-                mineError = "获取账号失败：" + message + " (" + code + ")";
+                mineError = "账号验证失败";
                 refreshMineOrCollections();
-                setStatus("账号验证失败");
             }
         });
     }
@@ -1345,7 +1357,6 @@ public class MainActivity extends Activity {
             public void onError(String message, int code) {
                 likesLoading = false;
                 likesLoaded = true;
-                setStatus("喜欢列表失败：" + message);
             }
         });
     }
@@ -1368,7 +1379,7 @@ public class MainActivity extends Activity {
             public void onError(String message, int code) {
                 playlistsLoading = false;
                 playlistsLoaded = true;
-                mineError = "歌单加载失败：" + message + " (" + code + ")";
+                mineError = "歌单加载失败";
                 refreshMineOrCollections();
             }
         });
@@ -1393,7 +1404,7 @@ public class MainActivity extends Activity {
             public void onError(String message, int code) {
                 albumsLoading = false;
                 albumsLoaded = true;
-                albumsError = "收藏专辑加载失败：" + message + " (" + code + ")";
+                albumsError = "收藏专辑加载失败";
                 refreshMineOrCollections();
             }
         });
@@ -1565,14 +1576,13 @@ public class MainActivity extends Activity {
                     content.removeAllViews();
                     content.addView(buildSongsScreen(subTitle, subSongs, back));
                 }
-                setStatus(subTitle + " · " + subSongs.size() + " 首");
             }
 
             @Override
             public void onError(String message, int code) {
                 if (seq != subSeq) return;
                 subLoading = false;
-                subError = message + " (" + code + ")";
+                subError = "专辑加载失败";
                 if (currentBack == back) {
                     content.removeAllViews();
                     content.addView(buildSubMessage(subTitle, subError, () -> openAlbum(subAlbum, back), back));
@@ -1653,7 +1663,6 @@ public class MainActivity extends Activity {
                     subPlaylistAdapter.notifyDataSetChanged();
                 }
                 updatePlaylistFooter();
-                setStatus(subTitle + " · " + subSongs.size() + "/" + subPlaylistTotal + " 首");
             }
 
             @Override
@@ -1663,15 +1672,14 @@ public class MainActivity extends Activity {
                 subLoading = false;
                 if (currentBack != back) return;
                 if (start == 0) {
-                    subError = message + " (" + code + ")";
+                    subError = "歌单加载失败";
                     content.removeAllViews();
                     content.addView(buildSubMessage(subTitle, subError,
                             () -> openPlaylist(playlist, back), back));
                 } else {
                     subPlaylistHasMore = true;
                     updatePlaylistFooter();
-                    Ui.toast(MainActivity.this, "加载更多失败：" + message);
-                    setStatus(subTitle + " · " + subSongs.size() + "/" + subPlaylistTotal + " 首");
+                    Ui.toast(MainActivity.this, "加载更多失败，请稍后重试");
                 }
             }
         });
@@ -1809,14 +1817,13 @@ public class MainActivity extends Activity {
         client.like(song.id, account.userId, like, new NetEaseClient.Callback<Boolean>() {
             @Override
             public void onSuccess(Boolean data) {
-                setStatus(like ? "已喜欢：" + song.name : "已取消喜欢：" + song.name);
             }
 
             @Override
             public void onError(String message, int code) {
                 if (previous) likedIds.add(song.id); else likedIds.remove(song.id);
                 refreshSongViews();
-                Ui.toast(MainActivity.this, "操作失败：" + message);
+                Ui.toast(MainActivity.this, "操作失败，请稍后重试");
             }
         });
     }
@@ -1868,7 +1875,6 @@ public class MainActivity extends Activity {
         String queueTitle = subTitle == null || subTitle.trim().isEmpty() ? "每日推荐" : subTitle;
         playerController.playQueue(queue, position, queueTitle);
         updateMiniPlayer();
-        setStatus("播放：" + song.name);
     }
 
     private static int indexById(List<Song> songs, long id) {
@@ -1913,13 +1919,6 @@ public class MainActivity extends Activity {
         if (playerController != null) playerController.setListener(playbackListener);
     }
 
-    private void setStatus(String text) {
-        if (status == null) return;
-        status.setText(text == null ? "" : text);
-        boolean show = (tab == 0 || tab == 1) && !subMode && text != null && !text.isEmpty();
-        status.setVisibility(show ? View.VISIBLE : View.GONE);
-    }
-
     @Override
     public void onBackPressed() {
         if (currentBack != null) {
@@ -1945,14 +1944,16 @@ public class MainActivity extends Activity {
                 playlistsLoaded = false;
                 albumsLoaded = false;
                 albumsError = "";
+                recommendedPlaylists.clear();
+                loadRecommended();
             }
             showTab(tab);
             return;
         }
         if (requestCode == REQ_LOGIN && resultCode == RESULT_OK) {
-            setStatus("登录成功");
             showTab(1);
             loadAccount();
+            loadRecommended();
         }
     }
 }

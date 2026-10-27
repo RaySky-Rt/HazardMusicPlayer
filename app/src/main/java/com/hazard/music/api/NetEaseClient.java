@@ -136,6 +136,15 @@ public final class NetEaseClient {
                 }, callback);
     }
 
+    public void personalizedPlaylists(Callback<List<Playlist>> callback) {
+        request("/api/v1/discovery/recommend/resource", obj(), false, json -> {
+            ensureOk(json);
+            JSONArray list = json.optJSONArray("recommend");
+            Log.i(TAG, "daily recommend playlists=" + (list == null ? -1 : list.length()));
+            return Playlist.list(list);
+        }, callback);
+    }
+
     public void recommendedPlaylists(Callback<List<Playlist>> callback) {
         request("/api/personalized/playlist",
                 obj("limit", 12, "total", true, "n", 1000),
