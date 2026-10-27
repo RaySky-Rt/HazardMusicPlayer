@@ -54,6 +54,7 @@ Release 构建：
 - `compileSdk 34`
 - `minSdk 23`
 - `targetSdk 28`
+- `abiFilters armeabi-v7a, arm64-v8a`
 
 ### Release 签名
 
@@ -75,6 +76,8 @@ keyPassword=your_key_password
 | 项目 / 库 | 用途 | 许可证 |
 | --- | --- | --- |
 | [ExoPlayer](https://github.com/google/ExoPlayer) | 音频播放引擎 | Apache License 2.0 |
+| [ExoPlayer FLAC Extension](https://github.com/google/ExoPlayer/tree/release-v2/extensions/flac) | FLAC 解码扩展 | Apache License 2.0 |
+| [libFLAC](https://xiph.org/flac/) | FLAC 原生解码（32/64 位） | BSD 3-Clause |
 | [ZXing](https://github.com/zxing/zxing) | 二维码生成/扫码登录 | Apache License 2.0 |
 | [AndroidX Core](https://developer.android.com/jetpack/androidx/releases/core) | WindowInsets/兼容支持 | Apache License 2.0 |
 | [AndroidX Annotation](https://developer.android.com/jetpack/androidx/releases/annotation) | Android 注解支持 | Apache License 2.0 |
